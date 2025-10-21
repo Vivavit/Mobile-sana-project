@@ -10,6 +10,8 @@ class AnalyticPage extends StatefulWidget {
 class _AnalyticPageState extends State<AnalyticPage> {
   @override
   Widget build(BuildContext context) {
-    return const Placeholder();
+    return const Center(
+      child: Text('Welcome to Analytic page'),
+    );
   }
 }

@@ -3,6 +3,7 @@ import 'package:mobile_camsme_sana_project/presentation/pages/analytic_page.dart
 import 'package:mobile_camsme_sana_project/presentation/pages/home_page.dart';
 import 'package:mobile_camsme_sana_project/presentation/pages/inventory_page.dart';
 import 'package:mobile_camsme_sana_project/presentation/pages/login_page.dart';
+import 'package:mobile_camsme_sana_project/presentation/pages/main_page.dart';
 import 'package:mobile_camsme_sana_project/presentation/pages/setting_page.dart';
 
 class AppRoute {
@@ -12,5 +13,7 @@ class AppRoute {
     '/setting': (_) => SettingPage(),
     '/inventory': (_) => InventoryPage(),
     '/analytic': (_) => AnalyticPage(),
+    '/': (_) => MainPage(),
+    
   };
 }
