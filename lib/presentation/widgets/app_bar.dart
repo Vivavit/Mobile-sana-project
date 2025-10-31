@@ -1,64 +1,51 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_camsme_sana_project/core/constants/app_color.dart';
 
-class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
-  final List<Widget>? actions;
+class ScrollHideAppBar extends StatelessWidget {
   final String title;
 
-  const CustomAppBar({
-    Key? key,
-    this.actions,
-    required this.title,
-  }) : super(key: key);
+  const ScrollHideAppBar({super.key, required this.title});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      // Control height manually
-      height: preferredSize.height,
-      padding: const EdgeInsets.fromLTRB(10, 0, 10, 0),
-      decoration: const BoxDecoration(
-      color: AppColors.primary,
-        borderRadius: BorderRadius.vertical(
-          bottom: Radius.circular(30),
-        ),
+    return SliverAppBar(
+      backgroundColor: AppColors.primary,
+      expandedHeight: 120,
+      floating: true,
+      snap: true,
+      pinned: false,
+      automaticallyImplyLeading: false,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(bottom: Radius.circular(25)),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Top row: icons
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      flexibleSpace: FlexibleSpaceBar(
+        background: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 35, 16, 10),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              IconButton(
-                onPressed: () {},
-                icon: const Icon(Icons.person, color: Colors.white, size: 20),
+              // Top icons
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: const [
+                  Icon(Icons.person_outline, color: Colors.white, size: 26),
+                  Icon(Icons.notifications, color: Colors.white, size: 26),
+                ],
               ),
-              IconButton(
-                onPressed: () {},
-                icon: const Icon(Icons.notifications, color: Colors.white, size: 20),
-                tooltip: 'Notifications',
+              const SizedBox(height: 10),
+              // Title below icons
+              Text(
+                title,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 22,
+                ),
               ),
             ],
           ),
-          const SizedBox(height: 5),
-
-          // Title below icon row
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 10),
-            child: Text(title,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 25,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
-
-  @override
-  Size get preferredSize => const Size.fromHeight(150);
 }

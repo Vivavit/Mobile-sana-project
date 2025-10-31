@@ -16,7 +16,7 @@ class MainPage extends StatefulWidget {
 class _MainPageState extends State<MainPage> {
   int currentPageIndex = 0;
 
-  final List<Widget> _pages = const[
+  final List<Widget> _pages = const [
     HomePage(),
     AnalyticPage(),
     InventoryPage(),
@@ -26,17 +26,21 @@ class _MainPageState extends State<MainPage> {
   final List<String> _titles = [
     'Hello, YamYam',
     'Analytics',
-    'Inventorys',
+    'Inventory',
     'Setting',
   ];
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: CustomAppBar(title: _titles[currentPageIndex]),
-      body: _pages[currentPageIndex],
+      body: NestedScrollView(
+        headerSliverBuilder: (context, innerBoxIsScrolled) {
+          return [ScrollHideAppBar(title: _titles[currentPageIndex])];
+        },
+        body: _pages[currentPageIndex],
+      ),
 
-      //nav_bar
+      // bottom nav bar
       bottomNavigationBar: Container(
         decoration: const BoxDecoration(
           color: AppColors.primary,
@@ -52,20 +56,21 @@ class _MainPageState extends State<MainPage> {
           ),
           child: NavigationBarTheme(
             data: NavigationBarThemeData(
-              labelTextStyle: MaterialStateProperty.resolveWith<TextStyle>(
-                (states) {
-                  if (states.contains(MaterialState.selected)) {
-                    return const TextStyle(color: Colors.white,);
-                  }
-                  return const TextStyle(color: Colors.white70); // unselected
-                },
-              ),
+              labelTextStyle: MaterialStateProperty.resolveWith<TextStyle>((
+                states,
+              ) {
+                if (states.contains(MaterialState.selected)) {
+                  return const TextStyle(color: Colors.white);
+                }
+                return const TextStyle(color: Colors.white70);
+              }),
             ),
             child: NavigationBar(
               backgroundColor: AppColors.primary,
               height: 70,
-              labelBehavior: NavigationDestinationLabelBehavior.onlyShowSelected,
-              indicatorColor: AppColors.text, // selected item background
+              labelBehavior:
+                  NavigationDestinationLabelBehavior.onlyShowSelected,
+              indicatorColor: AppColors.text,
               selectedIndex: currentPageIndex,
               onDestinationSelected: (int index) {
                 setState(() {
@@ -80,12 +85,18 @@ class _MainPageState extends State<MainPage> {
                 ),
                 NavigationDestination(
                   icon: Icon(Icons.analytics_outlined, color: Colors.grey),
-                  selectedIcon: Icon(Icons.analytics_outlined, color: Colors.white),
+                  selectedIcon: Icon(
+                    Icons.analytics_outlined,
+                    color: Colors.white,
+                  ),
                   label: 'Analytics',
                 ),
                 NavigationDestination(
                   icon: Icon(Icons.inventory_2_outlined, color: Colors.grey),
-                  selectedIcon: Icon(Icons.inventory_2_outlined, color: Colors.white),
+                  selectedIcon: Icon(
+                    Icons.inventory_2_outlined,
+                    color: Colors.white,
+                  ),
                   label: 'Inventory',
                 ),
                 NavigationDestination(
