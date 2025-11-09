@@ -13,8 +13,13 @@ class MainPage extends StatefulWidget {
   State<MainPage> createState() => _MainPageState();
 }
 
-class _MainPageState extends State<MainPage> {
+class _MainPageState extends State<MainPage>
+    with SingleTickerProviderStateMixin {
   int currentPageIndex = 0;
+  int selectedIndex = 0;
+  late AnimationController _controller;
+  late Animation<double> _opacityAnim;
+  late Animation<Offset> _slideAnim;
 
   final List<Widget> _pages = const [
     HomePage(),
@@ -31,16 +36,111 @@ class _MainPageState extends State<MainPage> {
   ];
 
   @override
+  void initState() {
+    super.initState();
+    _setupAnimation();
+  }
+
+  void _setupAnimation() {
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2000),
+    );
+
+    // Slide animation: from top → center → slightly down
+    _slideAnim = TweenSequence<Offset>([
+      TweenSequenceItem(
+        tween: Tween(
+          begin: const Offset(0, -0.1),
+          end: Offset.zero,
+        ).chain(CurveTween(curve: Curves.easeOut)),
+        weight: 50,
+      ),
+      TweenSequenceItem(
+        tween: Tween(
+          begin: Offset.zero,
+          end: const Offset(0, 0.1),
+        ).chain(CurveTween(curve: Curves.easeIn)),
+        weight: 50,
+      ),
+    ]).animate(_controller);
+
+    // Opacity animation: fade in → fade out
+    _opacityAnim = TweenSequence<double>([
+      TweenSequenceItem(
+        tween: Tween(
+          begin: 0.0,
+          end: 1.0,
+        ).chain(CurveTween(curve: Curves.easeInOut)),
+        weight: 50,
+      ),
+      TweenSequenceItem(
+        tween: Tween(
+          begin: 1.0,
+          end: 0.0,
+        ).chain(CurveTween(curve: Curves.easeInOut)),
+        weight: 50,
+      ),
+    ]).animate(_controller);
+  }
+
+  void _startLoaderAnimation() {
+    _controller.reset();
+    _controller.forward();
+  }
+
+  Widget get _loader => Center(
+    child: Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        // Logo
+        SlideTransition(
+          position: _slideAnim,
+          child: FadeTransition(
+            opacity: _opacityAnim,
+            child: Image.asset('asset/image/logo.png', height: 150),
+          ),
+        ),
+        const SizedBox(height: 25),
+        // Progress bar
+        SlideTransition(
+          position: _slideAnim,
+          child: FadeTransition(
+            opacity: _opacityAnim,
+            child: const LinearProgressIndicator(
+              color: AppColors.primary,
+              backgroundColor: Colors.white24,
+              minHeight: 3,
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
+
+  Widget get _currentPage {
+    if (currentPageIndex == -1) return _loader;
+    return _pages[currentPageIndex];
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: NestedScrollView(
         headerSliverBuilder: (context, innerBoxIsScrolled) {
-          return [ScrollHideAppBar(title: _titles[currentPageIndex])];
+          return [
+            ScrollHideAppBar(
+              title: currentPageIndex == -1 ? '' : _titles[currentPageIndex],
+            ),
+          ];
         },
-        body: _pages[currentPageIndex],
+        body: AnimatedSwitcher(
+          duration: const Duration(milliseconds: 300),
+          transitionBuilder: (child, animation) =>
+              FadeTransition(opacity: animation, child: child),
+          child: _currentPage,
+        ),
       ),
-
-      // bottom nav bar
       bottomNavigationBar: Container(
         decoration: const BoxDecoration(
           color: AppColors.primary,
@@ -71,11 +171,24 @@ class _MainPageState extends State<MainPage> {
               labelBehavior:
                   NavigationDestinationLabelBehavior.onlyShowSelected,
               indicatorColor: AppColors.text,
-              selectedIndex: currentPageIndex,
-              onDestinationSelected: (int index) {
+              selectedIndex: selectedIndex,
+              onDestinationSelected: (int index) async {
+                if (currentPageIndex == index) return;
+
                 setState(() {
-                  currentPageIndex = index;
+                  selectedIndex = index;
+                  currentPageIndex = -1;
                 });
+
+                _startLoaderAnimation(); // 🔥 Trigger smooth 3-phase logo animation
+
+                await Future.delayed(const Duration(milliseconds: 1000));
+
+                if (mounted) {
+                  setState(() {
+                    currentPageIndex = index;
+                  });
+                }
               },
               destinations: const [
                 NavigationDestination(
@@ -85,18 +198,12 @@ class _MainPageState extends State<MainPage> {
                 ),
                 NavigationDestination(
                   icon: Icon(Icons.analytics_outlined, color: Colors.grey),
-                  selectedIcon: Icon(
-                    Icons.analytics_outlined,
-                    color: Colors.white,
-                  ),
+                  selectedIcon: Icon(Icons.analytics, color: Colors.white),
                   label: 'Analytics',
                 ),
                 NavigationDestination(
                   icon: Icon(Icons.inventory_2_outlined, color: Colors.grey),
-                  selectedIcon: Icon(
-                    Icons.inventory_2_outlined,
-                    color: Colors.white,
-                  ),
+                  selectedIcon: Icon(Icons.inventory_2, color: Colors.white),
                   label: 'Inventory',
                 ),
                 NavigationDestination(
@@ -110,5 +217,11 @@ class _MainPageState extends State<MainPage> {
         ),
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
   }
 }

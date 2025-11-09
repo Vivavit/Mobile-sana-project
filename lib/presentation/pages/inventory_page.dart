@@ -21,58 +21,62 @@ class _InventoryPageState extends State<InventoryPage> {
   Widget build(BuildContext context) {
     return Stack(
       children: [
-        SingleChildScrollView(
-          physics: const BouncingScrollPhysics(),
-          child: Column(
-            children: [
-              const SizedBox(height: 5),
-              const SearchWidget(),
+        Align(
+          alignment: Alignment.topCenter,
+          child: SingleChildScrollView(
+            physics: const BouncingScrollPhysics(),
+            child: Column(
+              children: [
+                const SizedBox(height: 5),
+                const SearchWidget(),
 
-              // Filter chips
-              SizedBox(
-                height: 50,
-                child: ListView(
-                  physics: const BouncingScrollPhysics(),
-                  scrollDirection: Axis.horizontal,
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  children: filters.map((filter) {
-                    final bool isSelected = selectedFilter == filter;
-                    return Padding(
-                      padding: const EdgeInsets.only(right: 8.0),
-                      child: ChoiceChip(
-                        label: Text(filter),
-                        showCheckmark: false,
-                        selected: isSelected,
-                        onSelected: (value) {
-                          setState(() {
-                            selectedFilter = filter;
-                          });
-                        },
-                        selectedColor: AppColors.primary,
-                        backgroundColor: AppColors.secondary,
-                        labelStyle: TextStyle(
-                          color: isSelected ? Colors.white : Colors.black,
-                          fontWeight: isSelected
-                              ? FontWeight.bold
-                              : FontWeight.normal,
+                // Filter chips
+                SizedBox(
+                  height: 50,
+                  child: ListView(
+                    physics: const BouncingScrollPhysics(),
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    children: filters.map((filter) {
+                      final bool isSelected = selectedFilter == filter;
+                      return Padding(
+                        padding: const EdgeInsets.only(right: 8.0),
+                        child: ChoiceChip(
+                          label: Text(filter),
+                          showCheckmark: false,
+                          selected: isSelected,
+                          onSelected: (value) {
+                            setState(() {
+                              selectedFilter = filter;
+                            });
+                          },
+                          selectedColor: AppColors.primary,
+                          backgroundColor: AppColors.secondary,
+                          labelStyle: TextStyle(
+                            color: isSelected ? Colors.white : Colors.black,
+                            fontWeight: isSelected
+                                ? FontWeight.bold
+                                : FontWeight.normal,
+                          ),
+                          side: BorderSide(color: AppColors.primary),
                         ),
-                        side: BorderSide(color: AppColors.primary),
-                      ),
-                    );
-                  }).toList(),
+                      );
+                    }).toList(),
+                  ),
                 ),
-              ),
 
-              // ✅ Product list
-              ProductListWidget(
-                onItemAdded: (count) {
-                  setState(() {
-                    totalItems = count;
-                    showCheckoutBar = count > 0;
-                  });
-                },
-              ),
-            ],
+                // ✅ Product list
+                ProductListWidget(
+                  selectedFilter: selectedFilter,
+                  onItemAdded: (count) {
+                    setState(() {
+                      totalItems = count;
+                      showCheckoutBar = count > 0;
+                    });
+                  },
+                ),
+              ],
+            ),
           ),
         ),
 
@@ -80,14 +84,19 @@ class _InventoryPageState extends State<InventoryPage> {
         if (showCheckoutBar)
           Positioned(
             bottom: 10,
-            left: 20,
-            right: 20,
+            left: 25,
+            right: 25,
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 300),
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
               decoration: BoxDecoration(
-                color: AppColors.primary,
-                borderRadius: BorderRadius.circular(15),
+                color: AppColors.secondary,
+                border: Border.all(
+                  width: 1,
+                  color: AppColors.primary,
+                  style: BorderStyle.solid,
+                ),
+                borderRadius: BorderRadius.circular(50),
                 boxShadow: [
                   BoxShadow(
                     color: Colors.black.withOpacity(0.2),
@@ -100,12 +109,15 @@ class _InventoryPageState extends State<InventoryPage> {
                 children: [
                   Text(
                     "$totalItems item${totalItems > 1 ? 's' : ''} in cart",
-                    style: const TextStyle(color: Colors.white, fontSize: 16),
+                    style: const TextStyle(
+                      color: AppColors.primary,
+                      fontSize: 16,
+                    ),
                   ),
                   ElevatedButton(
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      foregroundColor: AppColors.primary,
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: AppColors.secondary,
                     ),
                     onPressed: () {
                       // TODO: Go to checkout page
