@@ -5,6 +5,7 @@ import 'package:mobile_camsme_sana_project/presentation/pages/inventory_page.dar
 import 'package:mobile_camsme_sana_project/presentation/pages/login_page.dart';
 import 'package:mobile_camsme_sana_project/presentation/pages/main_page.dart';
 import 'package:mobile_camsme_sana_project/presentation/pages/setting_page.dart';
+import 'package:mobile_camsme_sana_project/presentation/pages/welcome_page.dart';
 
 class AppRoute {
   static Map<String, WidgetBuilder> routes = {
@@ -14,6 +15,8 @@ class AppRoute {
     '/inventory': (_) => InventoryPage(),
     '/analytic': (_) => AnalyticPage(),
     '/': (_) => MainPage(),
+    '/welcome': (_) => WelcomePage(),
+
     
   };
 }

@@ -58,8 +58,8 @@ flutter:
   uses-material-design: true
 
   # To add assets to your application, add an assets section, like this:
-  # assets:
-  #   - images/a_dot_burr.jpeg
+  assets:
+    - asset/image/
   #   - images/a_dot_ham.jpeg
 
   # An image asset can refer to one or more resolution-specific "variants", see
@@ -74,9 +74,10 @@ flutter:
   # list giving the asset and other descriptors for the font. For
   # example:
   fonts:
-    - family: Exo
+    - family: Exo2
       fonts:
-        - asset: asset/font/Exo-VariableFont_wght.ttf
+        - asset: asset/font/Exo2-Regular.otf
+        - asset: asset/font/Exo2-Bold.otf
         # - asset: fonts/Exo-Italic-VariableFont_wght.ttf
         #   style: italic
 
