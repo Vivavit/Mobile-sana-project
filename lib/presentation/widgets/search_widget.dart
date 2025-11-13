@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:mobile_camsme_sana_project/core/constants/app_color.dart';
 
 class SearchWidget extends StatelessWidget {
-  const SearchWidget({super.key});
+  final ValueChanged<String>? onChanged;
+
+  const SearchWidget({super.key, this.onChanged});
 
   @override
   Widget build(BuildContext context) {
@@ -19,8 +21,9 @@ class SearchWidget extends StatelessWidget {
             ),
             child: Row(
               children: [
-                const Expanded(
+                Expanded(
                   child: TextField(
+                    onChanged: onChanged,
                     decoration: InputDecoration(
                       hintText: "Search....",
                       border: InputBorder.none,

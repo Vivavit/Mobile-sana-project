@@ -3,12 +3,14 @@ import 'package:mobile_camsme_sana_project/core/constants/app_color.dart';
 
 class ProductListWidget extends StatefulWidget {
   final Function(int)? onItemAdded;
-  final String selectedFilter; // ✅ add filter prop
+  final String selectedFilter; // add filter prop
+  final String searchQuery;
 
   const ProductListWidget({
     super.key,
     this.onItemAdded,
     required this.selectedFilter,
+    required this.searchQuery,
   });
 
   @override
@@ -68,18 +70,32 @@ class _ProductListWidgetState extends State<ProductListWidget> {
 
   @override
   Widget build(BuildContext context) {
-    // ✅ Apply filter logic
+    // Apply filter logic
     List<Map<String, dynamic>> filteredProducts = products.where((product) {
+      final name = product["name"].toString().toLowerCase();
+      final description = product["description"].toString().toLowerCase();
+      final search = widget.searchQuery.toLowerCase();
+
+      // ✅ Search filter
+      bool matchesSearch =
+          name.contains(search) || description.contains(search);
+
+      bool matchesFilter;
       switch (widget.selectedFilter) {
         case "Out Of Stock":
-          return product["stock"] == 0;
+          matchesFilter = product["stock"] == 0;
+          break;
         case "In Stock":
-          return product["stock"] > 5;
+          matchesFilter = product["stock"] > 5;
+          break;
         case "Low Stock":
-          return product["stock"] > 0 && product["stock"] <= 5;
+          matchesFilter = product["stock"] > 0 && product["stock"] <= 5;
+          break;
         default:
-          return true;
+          matchesFilter = true;
       }
+
+      return matchesFilter && matchesSearch;
     }).toList();
 
     return ListView.builder(

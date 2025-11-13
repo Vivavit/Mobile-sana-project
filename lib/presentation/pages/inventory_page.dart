@@ -12,7 +12,8 @@ class InventoryPage extends StatefulWidget {
 
 class _InventoryPageState extends State<InventoryPage> {
   String selectedFilter = "All";
-  bool showCheckoutBar = false; // ✅ Correct variable name
+  String searchQuery = "";
+  bool showCheckoutBar = false; // Correct variable name
   int totalItems = 0;
 
   final List<String> filters = ["All", "Out Of Stock", "In Stock", "Low Stock"];
@@ -28,7 +29,13 @@ class _InventoryPageState extends State<InventoryPage> {
             child: Column(
               children: [
                 const SizedBox(height: 5),
-                const SearchWidget(),
+                SearchWidget(
+                  onChanged: (value) {
+                    setState(() {
+                      searchQuery = value;
+                    });
+                  },
+                ),
 
                 // Filter chips
                 SizedBox(
@@ -68,6 +75,7 @@ class _InventoryPageState extends State<InventoryPage> {
                 // ✅ Product list
                 ProductListWidget(
                   selectedFilter: selectedFilter,
+                  searchQuery: searchQuery,
                   onItemAdded: (count) {
                     setState(() {
                       totalItems = count;
