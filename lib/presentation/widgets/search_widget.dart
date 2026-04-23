@@ -13,7 +13,7 @@ class SearchWidget extends StatelessWidget {
       child: Column(
         children: [
           Container(
-            padding: EdgeInsets.symmetric(horizontal: 20),
+            padding: const EdgeInsets.symmetric(horizontal: 20),
             decoration: BoxDecoration(
               color: AppColors.secondary,
               borderRadius: BorderRadius.circular(10),
@@ -24,13 +24,13 @@ class SearchWidget extends StatelessWidget {
                 Expanded(
                   child: TextField(
                     onChanged: onChanged,
-                    decoration: InputDecoration(
+                    decoration: const InputDecoration(
                       hintText: "Search....",
                       border: InputBorder.none,
                     ),
                   ),
                 ),
-                Icon(Icons.search, color: AppColors.primary),
+                const Icon(Icons.search, color: AppColors.primary),
               ],
             ),
           ),

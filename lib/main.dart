@@ -1,15 +1,43 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_camsme_sana_project/core/constants/app_color.dart';
+import 'package:mobile_camsme_sana_project/core/services/api_service.dart';
+import 'package:mobile_camsme_sana_project/core/services/auth_service.dart';
+import 'package:mobile_camsme_sana_project/core/services/secure_storage_service.dart';
+import 'package:mobile_camsme_sana_project/core/services/session.dart';
 import 'package:mobile_camsme_sana_project/route/app_route.dart';
 
-void main() {
-  runApp(const MyApp());
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // Initialize API service with caching
+  await ApiService.initialize();
+
+  await _initializeSession();
+  await AuthService.isLoggedIn();
+
+  runApp(MyApp());
+}
+
+Future<void> _initializeSession() async {
+  try {
+    final token = await SecureStorageService.getToken();
+    final warehouseId = await SecureStorageService.getWarehouseId();
+
+    Session.token = token;
+    Session.warehouseId = warehouseId;
+
+    debugPrint('=== Session Initialized ===');
+    debugPrint('Token loaded: ${Session.token != null ? "YES" : "NO"}');
+    debugPrint('Warehouse ID: ${Session.warehouseId}');
+    debugPrint('===========================');
+  } catch (e) {
+    debugPrint('Error initializing session: $e');
+  }
 }
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
-  // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -41,7 +69,7 @@ class MyApp extends StatelessWidget {
           bodyMedium: TextStyle(color: AppColors.text),
           bodySmall: TextStyle(color: AppColors.text),
         ),
-      )
+      ),
     );
   }
 }

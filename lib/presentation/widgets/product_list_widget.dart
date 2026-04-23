@@ -1,247 +1,562 @@
 import 'package:flutter/material.dart';
+import 'package:mobile_camsme_sana_project/core/models/product.dart';
 import 'package:mobile_camsme_sana_project/core/constants/app_color.dart';
+import 'package:mobile_camsme_sana_project/core/constants/config.dart';
+import 'package:mobile_camsme_sana_project/core/services/api_service.dart';
+import 'package:mobile_camsme_sana_project/core/services/product_cache_service.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:shimmer/shimmer.dart';
+import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 
 class ProductListWidget extends StatefulWidget {
   final Function(int)? onItemAdded;
-  final String selectedFilter; // add filter prop
+  final String selectedFilter;
   final String searchQuery;
+  final Function(List<Product>)? onCartChanged;
+  final Function(VoidCallback)? onClearCartCallback;
+  final void Function()? onProductsLoaded;
 
   const ProductListWidget({
     super.key,
     this.onItemAdded,
+    this.onCartChanged,
+    this.onClearCartCallback,
     required this.selectedFilter,
     required this.searchQuery,
+    required this.onProductsLoaded,
   });
 
   @override
-  State<ProductListWidget> createState() => _ProductListWidgetState();
+  State<ProductListWidget> createState() => ProductListWidgetState();
 }
 
-class _ProductListWidgetState extends State<ProductListWidget> {
-  late List<Map<String, dynamic>> products;
+class ProductListWidgetState extends State<ProductListWidget> {
+  List<Product> products = [];
+  bool isLoading = true;
+  bool hasError = false;
+  String? errorMessage;
 
   @override
   void initState() {
     super.initState();
-    products = [
-      {
-        "name": "Pizza",
-        "description": "Pizza is an Italian dish",
-        "price": 2.00,
-        "stock": 20,
-        "quantity": 0,
-        "image":
-            "https://imgs.search.brave.com/u92tAzgfpjTYxak7lNIGSshyOIlH-25Y4l2AgWfyDt8/rs:fit:860:0:0:0/g:ce/aHR0cHM6Ly9tYXJr/ZXRwbGFjZS5jYW52/YS5jb20vTUFER3Z1/V09zeUkvNy90aHVt/Ym5haWxfbGFyZ2Uv/Y2FudmEtcGVyc29u/LWhvbGRpbmctcGVw/cGVyb25pLXBpenph/LW9uLXRyYXktTUFE/R3Z1V09zeUkuanBn",
-      },
-      {
-        "name": "Burger",
-        "description": "Beef burger with cheese",
-        "price": 1.50,
-        "stock": 0,
-        "quantity": 0,
-        "image":
-            "https://imgs.search.brave.com/3TU_P22C-IRDdsmvT022M77jl0iV2CiVcMn4Tlz-5eY/rs:fit:500:0:1:0/g:ce/aHR0cHM6Ly9yZXMu/Y2xvdWRpbmFyeS5j/b20vdGhlLWluZmF0/dWF0aW9uL2ltYWdl/L3VwbG9hZC9jX2Zp/bGwsd18zODQwLGFy/XzQ6MyxnX2NlbnRl/cixmX2F1dG8vaW1h/Z2VzL0dob3N0YnVy/Z2VyX05pbmFfUGFs/YXp6b2xvX0RDLTEz/X25jeDVtaw",
-      },
-      {
-        "name": "Fries",
-        "description": "Crispy French fries",
-        "price": 1.00,
-        "stock": 3,
-        "quantity": 0,
-        "image":
-            "https://imgs.search.brave.com/ta6LmO6aqPBSIuCkuxb1GzNDyU3Vmdc3Q8LMOBXzsD4/rs:fit:500:0:1:0/g:ce/aHR0cHM6Ly9zdGF0/aWMudmVjdGVlenku/Y29tL3N5c3RlbS9y/ZXNvdXJjZXMvdGh1/bWJuYWlscy8wMDcv/NjcwLzgzNC9zbWFs/bC9mcmVuY2gtZnJp/ZXMtd2l0aC1zb3Vy/LWNyZWFtLWFuZC1r/ZXRjaHVwLXBob3Rv/LmpwZw",
-      },
-      {
-        "name": "Spaghetti",
-        "description": "Pasta with tomato sauce",
-        "price": 2.50,
-        "stock": 10,
-        "quantity": 0,
-        "image":
-            "https://imgs.search.brave.com/afpCeDD0wWxrQfPvCM1PaBaymVMDogvxb-msn0IVxoc/rs:fit:500:0:1:0/g:ce/aHR0cHM6Ly9tZWRp/YS5nZXR0eWltYWdl/cy5jb20vaWQvMTY1/NTk5NDY4L3Bob3Rv/L3BsYXRlLW9mLXNw/YWdoZXR0aS5qcGc_/cz02MTJ4NjEyJnc9/MCZrPTIwJmM9aWRS/RzRqODV0SWV3ZzZG/YUtFMFR4Q2ppSERK/eHNXZ3FlU3Y4N0J5/UGRPbz0",
-      },
-    ];
+    loadProducts();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    widget.onClearCartCallback?.call(clearCart);
+  }
+
+  /// Public method: Called by the InventoryPage refresh trigger
+  Future<void> refreshData() async {
+    setState(() {
+      isLoading = true;
+      hasError = false;
+      errorMessage = null;
+    });
+    await loadProducts(forceRefresh: true);
+  }
+
+  /// Load products with optional force refresh and retry logic
+  Future<void> loadProducts({bool forceRefresh = false, int retryCount = 0}) async {
+    try {
+      // Try to get cached products first (only on initial load)
+      if (!forceRefresh && retryCount == 0) {
+        final cachedProducts = await ProductCacheService.getCachedProducts();
+        if (cachedProducts != null && mounted) {
+          setState(() {
+            products = cachedProducts;
+            isLoading = false;
+            hasError = false;
+          });
+          widget.onProductsLoaded?.call();
+        }
+      }
+
+      // Fetch fresh data from API
+      final data = await ApiService.fetchProducts();
+
+      // Cache the fresh data
+      await ProductCacheService.cacheProducts(
+        data.map((e) => e is Product ? e : Product.fromJson(e)).toList(),
+      );
+
+      if (mounted) {
+        setState(() {
+          products = data.map((e) => e is Product ? e : Product.fromJson(e)).toList();
+          isLoading = false;
+          hasError = false;
+          errorMessage = null;
+        });
+      }
+      widget.onProductsLoaded?.call();
+    } catch (e) {
+      debugPrint("Error fetching products: $e");
+
+      if (mounted) {
+        // Retry logic: try up to 2 times with exponential backoff
+        if (retryCount < 2) {
+          setState(() => isLoading = true);
+          await Future.delayed(Duration(seconds: (retryCount + 1) * 2));
+          await loadProducts(forceRefresh: forceRefresh, retryCount: retryCount + 1);
+          return;
+        }
+
+        setState(() {
+          isLoading = false;
+          hasError = true;
+          errorMessage = e.toString().replaceAll('Exception: ', '');
+        });
+      }
+    }
   }
 
   void updateCart() {
-    int totalItems = products.fold(0, (sum, item) => item['quantity'] + sum);
-    widget.onItemAdded?.call(totalItems);
+    final cartProducts = products.where((p) => p.quantity > 0).toList();
+    widget.onItemAdded?.call(
+      cartProducts.fold(0, (sum, p) => sum + p.quantity),
+    );
+    widget.onCartChanged?.call(cartProducts);
+  }
+
+  void clearCart() {
+    setState(() {
+      for (var product in products) {
+        product.quantity = 0;
+      }
+    });
+    updateCart();
   }
 
   @override
   Widget build(BuildContext context) {
-    // Apply filter logic
-    List<Map<String, dynamic>> filteredProducts = products.where((product) {
-      final name = product["name"].toString().toLowerCase();
-      final description = product["description"].toString().toLowerCase();
-      final search = widget.searchQuery.toLowerCase();
+    // Show error state if there's an error
+    if (hasError && products.isEmpty) {
+      return _buildErrorState();
+    }
 
-      // ✅ Search filter
-      bool matchesSearch =
-          name.contains(search) || description.contains(search);
+    if (isLoading && products.isEmpty) {
+      return _buildSkeletonLoader();
+    }
+
+    // --- FILTER LOGIC ---
+    var filteredProducts = products.where((product) {
+      final search = widget.searchQuery.toLowerCase();
+      final matchesSearch =
+          product.name.toLowerCase().contains(search) ||
+          product.description.toLowerCase().contains(search);
 
       bool matchesFilter;
       switch (widget.selectedFilter) {
         case "Out Of Stock":
-          matchesFilter = product["stock"] == 0;
+          matchesFilter = product.stock == 0;
           break;
         case "In Stock":
-          matchesFilter = product["stock"] > 5;
+          matchesFilter = product.stock > 5;
           break;
         case "Low Stock":
-          matchesFilter = product["stock"] > 0 && product["stock"] <= 5;
+          matchesFilter = product.stock > 0 && product.stock <= 5;
           break;
         default:
           matchesFilter = true;
       }
-
       return matchesFilter && matchesSearch;
     }).toList();
 
-    return ListView.builder(
+    filteredProducts = filteredProducts.reversed.toList();
+
+    if (filteredProducts.isEmpty) {
+      return SizedBox(
+        height: 300,
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.inventory_2_outlined, size: 64, color: Colors.grey.shade300),
+              const SizedBox(height: 16),
+              Text(
+                widget.searchQuery.isNotEmpty
+                    ? "No products match your search"
+                    : "No products available",
+                style: TextStyle(color: Colors.grey.shade600, fontSize: 16),
+                textAlign: TextAlign.center,
+              ),
+              if (widget.searchQuery.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                TextButton.icon(
+                  onPressed: () {
+                    // Clear search - parent widget handles this
+                  },
+                  icon: const Icon(Icons.clear, size: 18),
+                  label: const Text("Clear search"),
+                ),
+              ],
+            ],
+          ),
+        ),
+      );
+    }
+
+    return GridView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        childAspectRatio: 0.72,
+        crossAxisSpacing: 10,
+        mainAxisSpacing: 10,
+      ),
       itemCount: filteredProducts.length,
       itemBuilder: (context, index) {
         final product = filteredProducts[index];
-        return Container(
-          margin: const EdgeInsets.only(bottom: 10),
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: AppColors.secondary,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: AppColors.primary),
-          ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // ✅ Image
-              ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: Image.network(
-                  product['image'],
-                  width: 70,
-                  height: 70,
-                  fit: BoxFit.cover,
-                ),
-              ),
-              const SizedBox(width: 12),
-
-              // ✅ Text
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      product['name'],
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                        fontFamily: 'Poppins',
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      product['description'],
-                      style: const TextStyle(fontSize: 12, color: Colors.grey),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      "${product['stock']} in stock",
-                      style: const TextStyle(fontSize: 13),
-                    ),
-                  ],
-                ),
-              ),
-
-              // ✅ Price + Add/Counter
-              Column(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  Text(
-                    "\$ ${product['price'].toStringAsFixed(2)}",
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  _buildAddOrCounter(product),
-                ],
-              ),
-            ],
+        return AnimationConfiguration.staggeredGrid(
+          position: index,
+          duration: const Duration(milliseconds: 375),
+          columnCount: 2,
+          child: SlideAnimation(
+            verticalOffset: 50.0,
+            child: FadeInAnimation(
+              child: _buildProductCard(product),
+            ),
           ),
         );
       },
     );
   }
 
-  Widget _buildAddOrCounter(Map<String, dynamic> product) {
-    if (product['quantity'] == 0) {
-      return GestureDetector(
-        onTap: () {
-          setState(() {
-            product['quantity'] = 1;
-          });
-          updateCart();
+  /// Skeleton loader with shimmer effect
+  Widget _buildSkeletonLoader() {
+    return Shimmer.fromColors(
+      baseColor: Colors.grey.shade200,
+      highlightColor: Colors.grey.shade100,
+      child: GridView.builder(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          childAspectRatio: 0.72,
+          crossAxisSpacing: 10,
+          mainAxisSpacing: 10,
+        ),
+        itemCount: 6, // Show 6 skeleton cards
+        itemBuilder: (context, index) {
+          return _SkeletonProductCard();
         },
-        child: Container(
-          decoration: BoxDecoration(
-            color: AppColors.primary,
-            borderRadius: BorderRadius.circular(20),
+      ),
+    );
+  }
+
+  /// Error state with retry button
+  Widget _buildErrorState() {
+    return SizedBox(
+      height: 300,
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.error_outline, size: 64, color: Colors.red.shade300),
+            const SizedBox(height: 16),
+            Text(
+              errorMessage ?? 'Failed to load products',
+              style: TextStyle(color: Colors.grey.shade600, fontSize: 16),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton.icon(
+              onPressed: () {
+                setState(() {
+                  isLoading = true;
+                  hasError = false;
+                });
+                loadProducts(forceRefresh: true);
+              },
+              icon: const Icon(Icons.refresh),
+              label: const Text('Retry'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildProductCard(Product product) {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.secondary,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.primary),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Image with smooth loading
+          ClipRRect(
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(10)),
+            child: CachedNetworkImage(
+              imageUrl: product.image.isNotEmpty
+                  ? product.image.startsWith('http')
+                      ? product.image
+                      : Config.getProductImageUrl(product.image)
+                  : 'https://via.placeholder.com/300x200/E9FFFA/03624C?text=No+Image',
+              width: double.infinity,
+              height: 120,
+              fit: BoxFit.cover,
+              fadeInDuration: const Duration(milliseconds: 300),
+              placeholder: (context, url) => Container(
+                width: double.infinity,
+                height: 120,
+                color: Colors.grey.shade200,
+                child: const Center(
+                  child: SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                ),
+              ),
+              errorWidget: (context, url, error) {
+                debugPrint('Image error for $url: $error');
+                // Fallback to placeholder on any error
+                return Container(
+                  width: double.infinity,
+                  height: 120,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [AppColors.primary, AppColors.primary.withValues(alpha: 0.7)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                  ),
+                  child: Center(
+                    child: Text(
+                      product.name.isNotEmpty ? product.name[0].toUpperCase() : '?',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 32,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
           ),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          child: const Text(
-            'Add',
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 14,
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.all(8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        product.name,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        "${product.stock} stock",
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey,
+                        ),
+                      ),
+                    ],
+                  ),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          "\$${product.price.toStringAsFixed(2)}",
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.primary,
+                          ),
+                        ),
+                      ),
+                      _buildAddOrCounter(product),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAddOrCounter(Product product) {
+    if (product.quantity == 0) {
+      final isOutOfStock = product.stock == 0;
+      return GestureDetector(
+        onTap: isOutOfStock
+            ? null
+            : () {
+                setState(() => product.quantity = 1);
+                updateCart();
+              },
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          decoration: BoxDecoration(
+            color: isOutOfStock ? Colors.red.shade200 : AppColors.primary,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Text(
+            isOutOfStock ? "Out" : "Add",
+            style: const TextStyle(
               color: Colors.white,
+              fontWeight: FontWeight.bold,
+              fontSize: 12,
             ),
           ),
         ),
       );
     }
 
-    return Container(
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 200),
       decoration: BoxDecoration(
         color: AppColors.primary.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppColors.primary),
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          GestureDetector(
-            onTap: () {
-              setState(() {
-                if (product['quantity'] > 0) {
-                  product['quantity']--;
-                }
-              });
-              updateCart();
-            },
-            child: Icon(Icons.remove, color: AppColors.primary, size: 20),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8.0),
+          _iconButton(Icons.remove, () {
+            setState(() {
+              if (product.quantity > 0) product.quantity--;
+            });
+            updateCart();
+          }),
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 150),
             child: Text(
-              product['quantity'].toString(),
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+              key: ValueKey(product.quantity),
+              product.quantity.toString(),
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
             ),
           ),
-          GestureDetector(
-            onTap: () {
-              setState(() {
-                if (product['quantity'] < product['stock']) {
-                  product['quantity']++;
-                }
-              });
-              updateCart();
-            },
-            child: Icon(Icons.add, color: AppColors.primary, size: 20),
+          _iconButton(Icons.add, () {
+            setState(() {
+              if (product.quantity < product.stock) product.quantity++;
+            });
+            updateCart();
+          }),
+        ],
+      ),
+    );
+  }
+
+  Widget _iconButton(IconData icon, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.all(4.0),
+        child: Icon(icon, size: 18, color: AppColors.primary),
+      ),
+    );
+  }
+}
+
+/// Skeleton loading card with shimmer effect
+class _SkeletonProductCard extends StatelessWidget {
+  const _SkeletonProductCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.secondary,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.primary),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Shimmer effect for image placeholder
+          Container(
+            width: double.infinity,
+            height: 120,
+            decoration: const BoxDecoration(
+              borderRadius: BorderRadius.vertical(top: Radius.circular(10)),
+            ),
+            child: ClipRRect(
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(10)),
+              child: Container(
+                color: Colors.grey.shade200,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.all(8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        width: double.infinity,
+                        height: 12,
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade200,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Container(
+                        width: 60,
+                        height: 10,
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade200,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ],
+                  ),
+                  Row(
+                    children: [
+                      Container(
+                        width: 50,
+                        height: 14,
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade200,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                      const Spacer(),
+                      Container(
+                        width: 40,
+                        height: 24,
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade200,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
           ),
         ],
       ),

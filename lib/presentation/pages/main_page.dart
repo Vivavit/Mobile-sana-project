@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_camsme_sana_project/core/constants/app_color.dart';
+import 'package:mobile_camsme_sana_project/core/services/user_service.dart';
 import 'package:mobile_camsme_sana_project/presentation/pages/analytic_page.dart';
 import 'package:mobile_camsme_sana_project/presentation/pages/home_page.dart';
 import 'package:mobile_camsme_sana_project/presentation/pages/inventory_page.dart';
+import 'package:mobile_camsme_sana_project/presentation/pages/admin/product_list_page.dart';
+import 'package:mobile_camsme_sana_project/presentation/pages/purchases/purchase_list_page.dart';
 import 'package:mobile_camsme_sana_project/presentation/pages/setting_page.dart';
 import 'package:mobile_camsme_sana_project/presentation/widgets/app_bar.dart';
+import 'dart:async';
 
 class MainPage extends StatefulWidget {
   const MainPage({super.key});
@@ -20,34 +24,55 @@ class _MainPageState extends State<MainPage>
   late AnimationController _controller;
   late Animation<double> _opacityAnim;
   late Animation<Offset> _slideAnim;
+  late Completer<void> _pageLoadingCompleter;
+  String _userName = 'User';
 
-  final List<Widget> _pages = const [
-    HomePage(),
-    AnalyticPage(),
-    InventoryPage(),
-    SettingPage(),
-  ];
+  List<Widget> get _pages {
+    return [
+      HomePage(onLoadingComplete: _pageLoadingComplete),
+      AnalyticPage(onLoadingComplete: _pageLoadingComplete),
+      InventoryPage(onLoadingComplete: _pageLoadingComplete),
+      PurchaseListPage(onLoadingComplete: _pageLoadingComplete),
+      ProductListPage(),
+      SettingPage(onLoadingComplete: _pageLoadingComplete),
+    ];
+  }
 
-  final List<String> _titles = [
-    'Hello, YamYam',
-    'Analytics',
-    'Inventory',
-    'Setting',
-  ];
+  String _getAppBarTitle() {
+    final titles = ['Hello', 'Analytics', 'Inventory', 'Purchases', 'Products', 'Settings'];
+    if (selectedIndex < titles.length) {
+      return titles[selectedIndex];
+    }
+    return '';
+  }
 
   @override
   void initState() {
     super.initState();
     _setupAnimation();
+    _pageLoadingCompleter = Completer();
+    _loadUser();
+  }
+
+  Future<void> _loadUser() async {
+    try {
+      final user = await UserService.getCurrentUser();
+      if (mounted && user != null) {
+        setState(() {
+          _userName = user.name;
+        });
+      }
+    } catch (e) {
+      debugPrint('Failed to load user: $e');
+    }
   }
 
   void _setupAnimation() {
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 2000),
+      duration: const Duration(milliseconds: 1500),
     );
 
-    // Slide animation: from top → center → slightly down
     _slideAnim = TweenSequence<Offset>([
       TweenSequenceItem(
         tween: Tween(
@@ -85,36 +110,68 @@ class _MainPageState extends State<MainPage>
   }
 
   void _startLoaderAnimation() {
-    _controller.reset();
-    _controller.forward();
+    _controller.repeat();
   }
 
-  Widget get _loader => Center(
-    child: Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        // Logo
-        SlideTransition(
-          position: _slideAnim,
-          child: FadeTransition(
-            opacity: _opacityAnim,
-            child: Image.asset('asset/image/logo.png', height: 150),
-          ),
-        ),
-        const SizedBox(height: 25),
-        // Progress bar
-        SlideTransition(
-          position: _slideAnim,
-          child: FadeTransition(
-            opacity: _opacityAnim,
-            child: const LinearProgressIndicator(
-              color: AppColors.primary,
-              backgroundColor: Colors.white24,
-              minHeight: 3,
+  void _pageLoadingComplete() {
+    if (!_pageLoadingCompleter.isCompleted) {
+      _pageLoadingCompleter.complete();
+    }
+  }
+
+  Widget get _loader => Container(
+    color: Colors.white,
+    child: Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          SlideTransition(
+            position: _slideAnim,
+            child: FadeTransition(
+              opacity: _opacityAnim,
+              child: Image.asset('asset/image/logo.png', height: 150),
             ),
           ),
-        ),
-      ],
+          const SizedBox(height: 40),
+          SlideTransition(
+            position: _slideAnim,
+            child: FadeTransition(
+              opacity: _opacityAnim,
+              child: Text(
+                'Loading...',
+                style: TextStyle(
+                  fontSize: 16,
+                  color: AppColors.primary,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 1.2,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 30),
+          SlideTransition(
+            position: _slideAnim,
+            child: FadeTransition(
+              opacity: _opacityAnim,
+              child: SizedBox(
+                width: 200,
+                child: Column(
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: const LinearProgressIndicator(
+                        color: AppColors.primary,
+                        backgroundColor: Color(0xFFE0E0E0),
+                        minHeight: 6,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
     ),
   );
 
@@ -123,15 +180,45 @@ class _MainPageState extends State<MainPage>
     return _pages[currentPageIndex];
   }
 
+  void _onPageChanged(int index) async {
+    if (currentPageIndex == index) return;
+
+    setState(() {
+      selectedIndex = index;
+      currentPageIndex = -1;
+    });
+
+    _pageLoadingCompleter = Completer();
+    _startLoaderAnimation();
+
+    try {
+      await _pageLoadingCompleter.future.timeout(const Duration(seconds: 5));
+    } on TimeoutException catch (e) {
+      debugPrint('Page loading timeout - forcing completion: $e');
+      // Complete it manually if it timed out
+      if (!_pageLoadingCompleter.isCompleted) {
+        _pageLoadingCompleter.complete();
+      }
+    } catch (e) {
+      debugPrint('Page loading error: $e');
+    }
+
+    if (mounted) {
+      setState(() {
+        currentPageIndex = index;
+      });
+      _controller.reset();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: NestedScrollView(
         headerSliverBuilder: (context, innerBoxIsScrolled) {
           return [
-            ScrollHideAppBar(
-              title: currentPageIndex == -1 ? '' : _titles[currentPageIndex],
-            ),
+            if (currentPageIndex != -1)
+              ScrollHideAppBar(title: _getAppBarTitle(), userName: _userName),
           ];
         },
         body: AnimatedSwitcher(
@@ -156,10 +243,10 @@ class _MainPageState extends State<MainPage>
           ),
           child: NavigationBarTheme(
             data: NavigationBarThemeData(
-              labelTextStyle: MaterialStateProperty.resolveWith<TextStyle>((
+              labelTextStyle: WidgetStateProperty.resolveWith<TextStyle>((
                 states,
               ) {
-                if (states.contains(MaterialState.selected)) {
+                if (states.contains(WidgetState.selected)) {
                   return const TextStyle(color: Colors.white);
                 }
                 return const TextStyle(color: Colors.white70);
@@ -172,41 +259,40 @@ class _MainPageState extends State<MainPage>
                   NavigationDestinationLabelBehavior.onlyShowSelected,
               indicatorColor: AppColors.text,
               selectedIndex: selectedIndex,
-              onDestinationSelected: (int index) async {
-                if (currentPageIndex == index) return;
-
-                setState(() {
-                  selectedIndex = index;
-                  currentPageIndex = -1;
-                });
-
-                _startLoaderAnimation(); // 🔥 Trigger smooth 3-phase logo animation
-
-                await Future.delayed(const Duration(milliseconds: 1000));
-
-                if (mounted) {
-                  setState(() {
-                    currentPageIndex = index;
-                  });
-                }
-              },
-              destinations: const [
-                NavigationDestination(
+              onDestinationSelected: _onPageChanged,
+              destinations: [
+                const NavigationDestination(
                   icon: Icon(Icons.home_outlined, color: Colors.grey),
                   selectedIcon: Icon(Icons.home, color: Colors.white),
                   label: 'Home',
                 ),
-                NavigationDestination(
+                const NavigationDestination(
                   icon: Icon(Icons.analytics_outlined, color: Colors.grey),
                   selectedIcon: Icon(Icons.analytics, color: Colors.white),
                   label: 'Analytics',
                 ),
-                NavigationDestination(
+                const NavigationDestination(
                   icon: Icon(Icons.inventory_2_outlined, color: Colors.grey),
                   selectedIcon: Icon(Icons.inventory_2, color: Colors.white),
                   label: 'Inventory',
                 ),
-                NavigationDestination(
+                const NavigationDestination(
+                  icon: Icon(Icons.shopping_cart_outlined, color: Colors.grey),
+                  selectedIcon: Icon(Icons.shopping_cart, color: Colors.white),
+                  label: 'Buy',
+                ),
+                const NavigationDestination(
+                  icon: Icon(
+                    Icons.production_quantity_limits_outlined,
+                    color: Colors.grey,
+                  ),
+                  selectedIcon: Icon(
+                    Icons.production_quantity_limits,
+                    color: Colors.white,
+                  ),
+                  label: 'Products',
+                ),
+                const NavigationDestination(
                   icon: Icon(Icons.settings_outlined, color: Colors.grey),
                   selectedIcon: Icon(Icons.settings, color: Colors.white),
                   label: 'Settings',

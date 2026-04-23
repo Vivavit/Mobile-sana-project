@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(flutter analyze:*)",
+      "Bash(flutter pub:*)",
+      "Bash(dart analyze:*)",
+      "Bash(python -c \"import sys; line=sys.stdin.read\\(\\); print\\(line[68]\\)\")",
+      "Bash(dart run:*)",
+      "Bash(mv CategoryApiController.php CategoryController.php)",
+      "Bash(mv BrandApiController.php BrandController.php)",
+      "Bash(rm:*)",
+      "Bash(flutter build:*)",
+      "Bash(flutter restart:*)"
+    ]
+  }
+}
