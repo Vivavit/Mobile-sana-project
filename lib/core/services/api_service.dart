@@ -38,13 +38,14 @@ class ApiService {
     try {
       final response = await request();
 
-      if (response.statusCode == 200) {
+      final statusCode = response.statusCode ?? 0;
+      if (statusCode >= 200 && statusCode < 300) {
         return response.data as T;
-      } else {
-        throw Exception(
-          'API Error [${response.statusCode}]: ${response.statusMessage}',
-        );
       }
+
+      throw Exception(
+        'API Error [${response.statusCode}]: ${response.statusMessage}',
+      );
     } on DioException catch (e) {
       debugPrint('DioException: ${e.message}');
       if (e.type == DioExceptionType.connectionTimeout ||

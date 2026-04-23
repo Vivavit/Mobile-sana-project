@@ -17,6 +17,7 @@ class _PurchaseDetailPageState extends State<PurchaseDetailPage> {
   final PurchaseService _purchaseService = PurchaseService();
   Purchase? _purchase;
   bool _isLoading = true;
+  String? _errorMessage;
 
   @override
   void initState() {
@@ -27,10 +28,16 @@ class _PurchaseDetailPageState extends State<PurchaseDetailPage> {
   Future<void> _loadPurchase() async {
     setState(() {
       _isLoading = true;
+      _errorMessage = null;
     });
 
-    await Future.delayed(const Duration(milliseconds: 300));
-    _purchase = _purchaseService.getPurchaseById(widget.purchaseId);
+    try {
+      final order = await _purchaseService.fetchPurchaseOrder(widget.purchaseId);
+      _purchase = order.toPurchase();
+    } catch (e) {
+      _purchase = null;
+      _errorMessage = e.toString().replaceFirst('Exception: ', '');
+    }
 
     if (mounted) {
       setState(() {
@@ -75,7 +82,7 @@ class _PurchaseDetailPageState extends State<PurchaseDetailPage> {
               ),
             )
           : _purchase == null
-              ? _buildNotFoundState()
+              ? _buildNotFoundState(_errorMessage)
               : RefreshIndicator(
                   color: AppColors.primary,
                   onRefresh: _handleRefresh,
@@ -116,7 +123,7 @@ class _PurchaseDetailPageState extends State<PurchaseDetailPage> {
     );
   }
 
-  Widget _buildNotFoundState() {
+  Widget _buildNotFoundState(String? message) {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -136,6 +143,23 @@ class _PurchaseDetailPageState extends State<PurchaseDetailPage> {
             ),
           ),
           const SizedBox(height: 8),
+          if (message != null && message.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Text(
+                message,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 13,
+                  color: Colors.grey[600],
+                ),
+              ),
+            ),
+          const SizedBox(height: 8),
+          TextButton(
+            onPressed: _loadPurchase,
+            child: const Text('Retry'),
+          ),
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: const Text('Go Back'),

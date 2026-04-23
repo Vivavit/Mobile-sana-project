@@ -20,9 +20,10 @@ class PurchaseListPage extends StatefulWidget {
 class _PurchaseListPageState extends State<PurchaseListPage> {
   final PurchaseService _purchaseService = PurchaseService();
 
-  late List<Purchase> _purchases;
+  List<Purchase> _purchases = [];
   List<Purchase> _filteredPurchases = [];
   bool _isLoading = true;
+  String? _errorMessage;
 
   @override
   void initState() {
@@ -33,17 +34,22 @@ class _PurchaseListPageState extends State<PurchaseListPage> {
   Future<void> _loadPurchases() async {
     setState(() {
       _isLoading = true;
+      _errorMessage = null;
     });
 
-    await Future.delayed(const Duration(milliseconds: 300)); // Simulate loading
-    _purchases = _purchaseService.getPurchases();
-    _filteredPurchases = List.from(_purchases);
-
-    if (mounted) {
-      setState(() {
-        _isLoading = false;
-      });
-      widget.onLoadingComplete?.call();
+    try {
+      // Use real API instead of mock
+      _purchases = await _purchaseService.fetchPurchaseOrdersLegacy();
+      _filteredPurchases = List.from(_purchases);
+    } catch (e) {
+      _purchases = [];
+      _filteredPurchases = [];
+      _errorMessage = e.toString().replaceFirst('Exception: ', '');
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        widget.onLoadingComplete?.call();
+      }
     }
   }
 
@@ -53,8 +59,19 @@ class _PurchaseListPageState extends State<PurchaseListPage> {
         _filteredPurchases = List.from(_purchases);
       });
     } else {
+      final lowerQuery = query.toLowerCase();
       setState(() {
-        _filteredPurchases = _purchaseService.getPurchases(searchQuery: query);
+        _filteredPurchases = _purchases.where((purchase) {
+          final purchaseId = purchase.purchaseId?.toLowerCase() ?? '';
+          final supplierName = purchase.supplier.name.toLowerCase();
+          final hasMatchingItem = purchase.items.any(
+            (item) => item.product.name.toLowerCase().contains(lowerQuery),
+          );
+
+          return purchaseId.contains(lowerQuery) ||
+              supplierName.contains(lowerQuery) ||
+              hasMatchingItem;
+        }).toList();
       });
     }
   }
@@ -87,6 +104,8 @@ class _PurchaseListPageState extends State<PurchaseListPage> {
               Expanded(
                 child: _isLoading
                     ? _buildLoadingState()
+                    : _errorMessage != null
+                        ? _buildErrorState()
                     : _filteredPurchases.isEmpty
                         ? _buildEmptyState()
                         : AnimationConfiguration.staggeredList(
@@ -211,6 +230,50 @@ class _PurchaseListPageState extends State<PurchaseListPage> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildErrorState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.cloud_off_rounded,
+              size: 56,
+              color: Colors.red.withValues(alpha: 0.75),
+            ),
+            const SizedBox(height: 14),
+            const Text(
+              'Unable to load purchases',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: AppColors.text,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              _errorMessage ?? 'Please check your connection and try again.',
+              style: TextStyle(
+                fontSize: 13,
+                color: Colors.grey[700],
+                height: 1.4,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            FilledButton.icon(
+              onPressed: _loadPurchases,
+              icon: const Icon(Icons.refresh_rounded),
+              label: const Text('Retry'),
+            ),
+          ],
+        ),
       ),
     );
   }

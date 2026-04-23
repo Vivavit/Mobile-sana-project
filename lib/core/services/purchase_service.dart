@@ -15,6 +15,33 @@ class PurchaseService {
     await ApiService.initialize();
   }
 
+  List<dynamic>? _extractListPayload(dynamic response) {
+    if (response is List) return response;
+
+    if (response is Map<String, dynamic>) {
+      final directData = response['data'];
+
+      if (directData is List) return directData;
+
+      // Handles wrapped responses like { success: true, data: { data: [...] } }
+      if (directData is Map<String, dynamic>) {
+        final nestedData = directData['data'];
+        if (nestedData is List) return nestedData;
+      }
+    }
+
+    return null;
+  }
+
+  Map<String, dynamic>? _extractObjectPayload(dynamic response) {
+    if (response is Map<String, dynamic>) {
+      final data = response['data'];
+      if (data is Map<String, dynamic>) return data;
+      return response;
+    }
+    return null;
+  }
+
 
   // Fetch suppliers from API
   Future<List<Supplier>> fetchSuppliers() async {
@@ -398,8 +425,9 @@ class PurchaseService {
       () => dio.get('/purchase-orders', queryParameters: params),
     );
 
-    if (response is Map<String, dynamic> && response.containsKey('data')) {
-      return (response['data'] as List)
+    final data = _extractListPayload(response);
+    if (data != null) {
+      return data
           .map((json) => PurchaseOrder.fromJson(json))
           .toList();
     }
@@ -425,8 +453,9 @@ class PurchaseService {
       () => dio.get('/my-purchase-orders', queryParameters: params),
     );
 
-    if (response is Map<String, dynamic> && response.containsKey('data')) {
-      return (response['data'] as List)
+    final data = _extractListPayload(response);
+    if (data != null) {
+      return data
           .map((json) => PurchaseOrder.fromJson(json))
           .toList();
     }
@@ -443,8 +472,9 @@ class PurchaseService {
       () => dio.get('/purchase-orders/$id'),
     );
 
-    if (response is Map<String, dynamic>) {
-      return PurchaseOrder.fromJson(response);
+    final payload = _extractObjectPayload(response);
+    if (payload != null) {
+      return PurchaseOrder.fromJson(payload);
     }
     throw Exception('Failed to fetch purchase order');
   }

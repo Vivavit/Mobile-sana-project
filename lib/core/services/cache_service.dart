@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:mobile_camsme_sana_project/core/constants/config.dart';
 import 'package:mobile_camsme_sana_project/core/services/session.dart';
 import 'package:flutter/foundation.dart';
+import 'dart:async';
 
 class CacheService {
   /// Creates a Dio instance with optimized settings
@@ -11,8 +12,8 @@ class CacheService {
     // Set base options with reasonable timeouts
     dio.options = BaseOptions(
       baseUrl: Config.apiBaseUrl,
-      connectTimeout: const Duration(seconds: 30),
-      receiveTimeout: const Duration(seconds: 30),
+      connectTimeout: const Duration(seconds: 45),
+      receiveTimeout: const Duration(seconds: 60),
       headers: {
         'Accept': 'application/json',
         'Content-Type': 'application/json',
@@ -39,6 +40,46 @@ class CacheService {
             debugPrint('Authentication error: Token may be invalid or expired');
           }
           return handler.next(error);
+        },
+      ),
+    );
+
+    // Retry transient failures (common with cold-starting hosted APIs like Render).
+    // Only retry safe methods to avoid duplicate writes.
+    dio.interceptors.add(
+      InterceptorsWrapper(
+        onError: (error, handler) async {
+          final request = error.requestOptions;
+          final method = request.method.toUpperCase();
+          final currentRetry = (request.extra['retry_count'] as int?) ?? 0;
+          final shouldRetryMethod = method == 'GET' || method == 'HEAD';
+          final statusCode = error.response?.statusCode;
+          final isTransientStatus = statusCode == 502 || statusCode == 503 || statusCode == 504;
+          final isTransientNetworkError =
+              error.type == DioExceptionType.connectionError ||
+              error.type == DioExceptionType.connectionTimeout ||
+              error.type == DioExceptionType.receiveTimeout;
+          final shouldRetry = shouldRetryMethod &&
+              currentRetry < 2 &&
+              (isTransientNetworkError || isTransientStatus);
+
+          if (!shouldRetry) {
+            return handler.next(error);
+          }
+
+          final nextRetry = currentRetry + 1;
+          request.extra['retry_count'] = nextRetry;
+          final delayMs = 600 * nextRetry;
+          await Future.delayed(Duration(milliseconds: delayMs));
+
+          try {
+            final cloned = await dio.fetch(request);
+            return handler.resolve(cloned);
+          } on DioException catch (e) {
+            return handler.next(e);
+          } catch (_) {
+            return handler.next(error);
+          }
         },
       ),
     );

@@ -50,16 +50,19 @@ class PurchaseOrder {
   factory PurchaseOrder.fromJson(Map<String, dynamic> json) {
     final itemsJson = json['items'] as List<dynamic>? ?? [];
     final items = itemsJson.map((item) => PurchaseOrderItem.fromJson(item)).toList();
+    final supplier = json['supplier'] as Map<String, dynamic>?;
+    final warehouse = json['warehouse'] as Map<String, dynamic>?;
+    final creator = json['creator'] as Map<String, dynamic>?;
 
     return PurchaseOrder(
       id: json['id'],
       poNumber: json['po_number'],
       referenceNumber: json['reference_number'],
       status: json['status'],
-      supplierId: json['supplier_id'],
-      supplierName: json['supplier_name'],
-      warehouseId: json['warehouse_id'],
-      warehouseName: json['warehouse_name'],
+      supplierId: json['supplier_id'] ?? supplier?['id'] ?? 0,
+      supplierName: json['supplier_name'] ?? supplier?['name'],
+      warehouseId: json['warehouse_id'] ?? warehouse?['id'] ?? 0,
+      warehouseName: json['warehouse_name'] ?? warehouse?['name'],
       notes: json['notes'],
       taxRate: json['tax_rate']?.toDouble() ?? 0,
       shippingCost: json['shipping_cost']?.toDouble() ?? 0,
@@ -75,8 +78,8 @@ class PurchaseOrder {
       receivedAt: json['received_at'] != null
           ? DateTime.parse(json['received_at'].toString())
           : null,
-      createdById: json['created_by'],
-      createdByName: json['created_by_name'],
+      createdById: json['created_by'] ?? creator?['id'],
+      createdByName: json['created_by_name'] ?? creator?['name'],
       items: items,
     );
   }
