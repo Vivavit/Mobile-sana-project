@@ -40,7 +40,7 @@ class SecureStorageService {
     String? userName,
     String? userEmail,
     String? userPhone,
-    List<String>? permissions,
+    List<String>? permissions, String? userType,
   }) async {
     final futures = <Future>[
       _storage.write(key: _tokenKey, value: token),

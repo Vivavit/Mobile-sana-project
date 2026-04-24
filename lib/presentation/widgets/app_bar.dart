@@ -39,11 +39,6 @@ class ScrollHideAppBar extends StatelessWidget {
                       fontSize: 22,
                     ),
                   ),
-                  const Icon(
-                    Icons.notifications,
-                    color: Colors.white,
-                    size: 26,
-                  ),
                 ],
               ),
             ],

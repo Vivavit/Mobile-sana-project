@@ -21,13 +21,13 @@ class Supplier {
 
   factory Supplier.fromJson(Map<String, dynamic> json) {
     return Supplier(
-      id: json['id'] != null ? int.parse(json['id'].toString()) : 0,
-      name: json['name'] ?? '',
-      contactPerson: json['contact_person'],
-      phone: json['phone'],
-      email: json['email'],
-      address: json['address'],
-      taxId: json['tax_id'],
+      id: json['id'] != null ? int.tryParse(json['id'].toString()) ?? 0 : 0,
+      name: json['name']?.toString() ?? '',
+      contactPerson: json['contact_person']?.toString(),
+      phone: json['phone']?.toString(),
+      email: json['email']?.toString(),
+      address: json['address']?.toString(),
+      taxId: json['tax_id']?.toString(),
     );
   }
 
@@ -50,7 +50,7 @@ class Supplier {
 class PurchaseItem {
   final int? id;
   final Product product;
-  final double price; // Purchase price at time of purchase
+  final double price;
   final int quantity;
   final double subtotal;
 
@@ -94,11 +94,11 @@ class Purchase {
   final int? id;
   final Supplier supplier;
   final DateTime date;
-  final String? purchaseId; // External reference (e.g., PO-001)
+  final String? purchaseId;
   final String? notes;
   final List<PurchaseItem> items;
   final double total;
-  final String? status; // pending, completed, cancelled
+  final String? status;
   final DateTime? createdAt;
 
   Purchase({
@@ -139,31 +139,62 @@ class Purchase {
 
   factory Purchase.fromJson(Map<String, dynamic> json) {
     final itemsJson = json['items'] as List<dynamic>? ?? [];
+
     final items = itemsJson.map((item) {
-      final product = Product.fromJson(item['product'] ?? item);
-      return PurchaseItem(
-        id: item['id'],
-        product: product,
-        price: double.parse(item['unit_price']?.toString() ?? item['price'].toString()),
-        quantity: int.parse(item['quantity'].toString()),
+      if (item is! Map<String, dynamic>) return null;
+
+      final product = Product.fromJson(
+        (item['product'] is Map<String, dynamic>)
+            ? item['product'] as Map<String, dynamic>
+            : item,
       );
-    }).toList();
+
+      // ✅ Safe price: try unit_price first, then price, fallback to 0.0
+      final rawPrice = item['unit_price'] ?? item['price'];
+      final price = rawPrice != null
+          ? double.tryParse(rawPrice.toString()) ?? 0.0
+          : 0.0;
+
+      // ✅ Safe quantity: fallback to 0
+      final quantity = item['quantity'] != null
+          ? int.tryParse(item['quantity'].toString()) ?? 0
+          : 0;
+
+      return PurchaseItem(
+        id: item['id'] != null
+            ? int.tryParse(item['id'].toString())
+            : null,
+        product: product,
+        price: price,
+        quantity: quantity,
+      );
+    }).whereType<PurchaseItem>().toList(); // filters out any nulls
+
+    // ✅ Safe total: try total_amount first, then total, fallback to 0.0
+    final rawTotal = json['total_amount'] ?? json['total'];
+    final total = rawTotal != null
+        ? double.tryParse(rawTotal.toString()) ?? 0.0
+        : 0.0;
 
     return Purchase(
-      id: json['id'],
-      supplier: Supplier.fromJson(json['supplier']),
+      id: json['id'] != null
+          ? int.tryParse(json['id'].toString())
+          : null,
+      supplier: Supplier.fromJson(
+        (json['supplier'] is Map<String, dynamic>)
+            ? json['supplier'] as Map<String, dynamic>
+            : <String, dynamic>{},
+      ),
       date: json['created_at'] != null
-          ? DateTime.parse(json['created_at'].toString())
+          ? DateTime.tryParse(json['created_at'].toString()) ?? DateTime.now()
           : DateTime.now(),
-      purchaseId: json['po_number'] ?? json['purchase_id'],
-      notes: json['notes'],
+      purchaseId: json['po_number']?.toString() ?? json['purchase_id']?.toString(),
+      notes: json['notes']?.toString(),
       items: items,
-      total: json['total_amount'] != null
-          ? double.parse(json['total_amount'].toString())
-          : double.parse(json['total'].toString()),
-      status: json['status'] ?? 'pending',
+      total: total,
+      status: json['status']?.toString() ?? 'pending',
       createdAt: json['created_at'] != null
-          ? DateTime.parse(json['created_at'].toString())
+          ? DateTime.tryParse(json['created_at'].toString())
           : null,
     );
   }

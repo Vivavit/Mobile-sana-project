@@ -32,8 +32,9 @@ class _PurchaseListPageState extends State<PurchaseListPage> {
   }
 
   Future<void> _loadPurchases() async {
+    final hasData = _purchases.isNotEmpty;
     setState(() {
-      _isLoading = true;
+      _isLoading = !hasData;
       _errorMessage = null;
     });
 
@@ -42,8 +43,10 @@ class _PurchaseListPageState extends State<PurchaseListPage> {
       _purchases = await _purchaseService.fetchPurchaseOrdersLegacy();
       _filteredPurchases = List.from(_purchases);
     } catch (e) {
-      _purchases = [];
-      _filteredPurchases = [];
+      if (!hasData) {
+        _purchases = [];
+        _filteredPurchases = [];
+      }
       _errorMessage = e.toString().replaceFirst('Exception: ', '');
     } finally {
       if (mounted) {

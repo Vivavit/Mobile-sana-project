@@ -75,6 +75,7 @@ class _LoginPageState extends State<LoginPage> {
         userName: userData['name'],
         userEmail: userData['email'],
         userPhone: userData['phone'],
+        userType: userData['user_type'],
         permissions: userData['permissions'] != null
             ? List<String>.from(userData['permissions'])
             : null,

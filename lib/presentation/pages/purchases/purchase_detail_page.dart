@@ -3,6 +3,8 @@ import 'package:mobile_camsme_sana_project/core/constants/app_color.dart';
 import 'package:mobile_camsme_sana_project/core/constants/config.dart';
 import 'package:mobile_camsme_sana_project/core/services/purchase_service.dart';
 import 'package:mobile_camsme_sana_project/core/models/purchase.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
 
 class PurchaseDetailPage extends StatefulWidget {
   final int purchaseId;
@@ -26,8 +28,9 @@ class _PurchaseDetailPageState extends State<PurchaseDetailPage> {
   }
 
   Future<void> _loadPurchase() async {
+    final hasData = _purchase != null;
     setState(() {
-      _isLoading = true;
+      _isLoading = !hasData;
       _errorMessage = null;
     });
 
@@ -35,7 +38,9 @@ class _PurchaseDetailPageState extends State<PurchaseDetailPage> {
       final order = await _purchaseService.fetchPurchaseOrder(widget.purchaseId);
       _purchase = order.toPurchase();
     } catch (e) {
-      _purchase = null;
+      if (!hasData) {
+        _purchase = null;
+      }
       _errorMessage = e.toString().replaceFirst('Exception: ', '');
     }
 
@@ -74,6 +79,13 @@ class _PurchaseDetailPageState extends State<PurchaseDetailPage> {
           icon: const Icon(Icons.arrow_back_ios_new_rounded),
           onPressed: () => Navigator.pop(context),
         ),
+        actions: [
+          IconButton(
+            tooltip: 'Print Invoice',
+            onPressed: _purchase == null ? null : _printInvoice,
+            icon: const Icon(Icons.print_rounded),
+          ),
+        ],
       ),
       body: _isLoading
           ? const Center(
@@ -882,6 +894,104 @@ class _PurchaseDetailPageState extends State<PurchaseDetailPage> {
       ),
     );
   }
+
+  Future<void> _printInvoice() async {
+    if (_purchase == null) return;
+
+    try {
+      final invoice = await _purchaseService.buildInvoiceData(widget.purchaseId);
+
+      await Printing.layoutPdf(
+        onLayout: (format) async {
+          final doc = pw.Document();
+
+          doc.addPage(
+            pw.MultiPage(
+              pageFormat: format,
+              margin: const pw.EdgeInsets.all(24),
+              build: (context) {
+                return [
+                  pw.Header(
+                    level: 0,
+                    child: pw.Text(
+                      'Purchase Invoice',
+                      style: pw.TextStyle(
+                        fontSize: 24,
+                        fontWeight: pw.FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  pw.SizedBox(height: 8),
+                  pw.Text('Invoice No: ${invoice.invoiceNumber}'),
+                  pw.Text('Order ID: ${invoice.orderId}'),
+                  pw.Text('Date: ${_formatDate(invoice.date)}'),
+                  pw.Text('Supplier: ${invoice.supplierName}'),
+                  if (invoice.warehouseName != null && invoice.warehouseName!.isNotEmpty)
+                    pw.Text('Warehouse: ${invoice.warehouseName}'),
+                  pw.Text('Status: ${invoice.status.toUpperCase()}'),
+                  pw.SizedBox(height: 16),
+                  pw.Table.fromTextArray(
+                    headers: const ['Product', 'Qty', 'Unit Price', 'Total'],
+                    data: invoice.lines
+                        .map(
+                          (line) => [
+                            line.productName,
+                            line.quantity.toString(),
+                            _money(line.unitPrice),
+                            _money(line.lineTotal),
+                          ],
+                        )
+                        .toList(),
+                    cellAlignment: pw.Alignment.centerLeft,
+                    headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+                  ),
+                  pw.SizedBox(height: 14),
+                  pw.Align(
+                    alignment: pw.Alignment.centerRight,
+                    child: pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.start,
+                      children: [
+                        pw.Text('Subtotal: ${_money(invoice.subtotal)}'),
+                        pw.Text(
+                          'Tax (${invoice.taxRate.toStringAsFixed(2)}%): ${_money(invoice.taxAmount)}',
+                        ),
+                        pw.Text('Shipping: ${_money(invoice.shippingCost)}'),
+                        pw.SizedBox(height: 4),
+                        pw.Text(
+                          'Total: ${_money(invoice.grandTotal)}',
+                          style: pw.TextStyle(
+                            fontWeight: pw.FontWeight.bold,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (invoice.notes != null && invoice.notes!.isNotEmpty) ...[
+                    pw.SizedBox(height: 14),
+                    pw.Text(
+                      'Notes:',
+                      style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+                    ),
+                    pw.Text(invoice.notes!),
+                  ],
+                ];
+              },
+            ),
+          );
+
+          return doc.save();
+        },
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to print invoice: $e')),
+      );
+    }
+  }
+
+  String _money(double value) => '\$${value.toStringAsFixed(2)}';
 
   @override
   void dispose() {

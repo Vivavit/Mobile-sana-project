@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:mobile_camsme_sana_project/core/constants/app_color.dart';
 import 'package:mobile_camsme_sana_project/core/models/product.dart';
 
@@ -28,13 +29,28 @@ class _PurchaseItemRowState extends State<PurchaseItemRow> {
   late TextEditingController _quantityController;
   late TextEditingController _priceController;
   late FocusNode _quantityFocusNode;
+  late FocusNode _priceFocusNode;
+  bool _isFocused = false;
 
   @override
   void initState() {
     super.initState();
-    _quantityController = TextEditingController(text: widget.quantity.toString());
-    _priceController = TextEditingController(text: widget.purchasePrice.toStringAsFixed(2));
+    _quantityController =
+        TextEditingController(text: widget.quantity.toString());
+    _priceController = TextEditingController(
+        text: widget.purchasePrice.toStringAsFixed(2));
     _quantityFocusNode = FocusNode();
+    _priceFocusNode = FocusNode();
+
+    _quantityFocusNode.addListener(_onFocusChange);
+    _priceFocusNode.addListener(_onFocusChange);
+  }
+
+  void _onFocusChange() {
+    setState(() {
+      _isFocused =
+          _quantityFocusNode.hasFocus || _priceFocusNode.hasFocus;
+    });
   }
 
   @override
@@ -42,272 +58,329 @@ class _PurchaseItemRowState extends State<PurchaseItemRow> {
     _quantityController.dispose();
     _priceController.dispose();
     _quantityFocusNode.dispose();
+    _priceFocusNode.dispose();
     super.dispose();
   }
 
   @override
   void didUpdateWidget(PurchaseItemRow oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.quantity != widget.quantity) {
+    if (oldWidget.quantity != widget.quantity &&
+        !_quantityFocusNode.hasFocus) {
       _quantityController.text = widget.quantity.toString();
     }
-    if (oldWidget.purchasePrice != widget.purchasePrice) {
-      _priceController.text = widget.purchasePrice.toStringAsFixed(2);
+    if (oldWidget.purchasePrice != widget.purchasePrice &&
+        !_priceFocusNode.hasFocus) {
+      _priceController.text =
+          widget.purchasePrice.toStringAsFixed(2);
     }
+  }
+
+  void _decrement() {
+    final current = int.tryParse(_quantityController.text) ?? 1;
+    if (current > 1) {
+      _quantityController.text = '${current - 1}';
+      widget.onQuantityChanged(current - 1);
+    }
+  }
+
+  void _increment() {
+    final current = int.tryParse(_quantityController.text) ?? 1;
+    _quantityController.text = '${current + 1}';
+    widget.onQuantityChanged(current + 1);
   }
 
   @override
   Widget build(BuildContext context) {
     final subtotal = widget.purchasePrice * widget.quantity;
-    final hasFocus = _quantityFocusNode.hasFocus;
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(12),
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 200),
+      margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: hasFocus ? AppColors.primary : AppColors.primary.withValues(alpha: 0.15),
-          width: hasFocus ? 2 : 1,
+          color: _isFocused
+              ? AppColors.primary
+              : AppColors.primary.withValues(alpha: 0.15),
+          width: _isFocused ? 1.8 : 1,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+            color: _isFocused
+                ? AppColors.primary.withValues(alpha: 0.08)
+                : Colors.black.withValues(alpha: 0.04),
+            blurRadius: _isFocused ? 12 : 6,
+            offset: const Offset(0, 3),
           ),
         ],
       ),
       child: Column(
         children: [
-          // Product name header with remove button
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  widget.product.name,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.text,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              const SizedBox(width: 8),
-              GestureDetector(
-                onTap: widget.onRemove,
-                child: Container(
-                  padding: const EdgeInsets.all(6),
+          // ── Header row: product name + subtotal badge + remove ──
+          Padding(
+            padding:
+                const EdgeInsets.fromLTRB(12, 12, 8, 0),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Product colour dot
+                Container(
+                  width: 8,
+                  height: 8,
+                  margin: const EdgeInsets.only(top: 5, right: 8),
                   decoration: BoxDecoration(
-                    color: Colors.red[50],
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Icon(
-                    Icons.close_rounded,
-                    size: 20,
-                    color: Colors.red[400],
+                    color: AppColors.primary,
+                    shape: BoxShape.circle,
                   ),
                 ),
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 12),
-
-          // Quantity and Price inputs
-          Row(
-            children: [
-              // Quantity selector
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Qty',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey,
-                        fontWeight: FontWeight.w500,
-                      ),
+                // Product name
+                Expanded(
+                  child: Text(
+                    widget.product.name,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.text,
+                      height: 1.3,
                     ),
-                    const SizedBox(height: 6),
-                    GestureDetector(
-                      onTap: () {
-                        FocusScope.of(context).requestFocus(_quantityFocusNode);
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                        decoration: BoxDecoration(
-                          color: AppColors.secondary.withValues(alpha: 0.5),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: hasFocus ? AppColors.primary : AppColors.primary.withValues(alpha: 0.2),
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            GestureDetector(
-                              onTap: () {
-                                int current = int.tryParse(_quantityController.text) ?? 1;
-                                if (current > 1) {
-                                  _quantityController.text = '${current - 1}';
-                                  widget.onQuantityChanged(current - 1);
-                                }
-                              },
-                              child: Container(
-                                padding: const EdgeInsets.all(4),
-                                decoration: BoxDecoration(
-                                  color: AppColors.primary,
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                                child: const Icon(
-                                  Icons.remove,
-                                  size: 16,
-                                  color: Colors.white,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            SizedBox(
-                              width: 40,
-                              child: TextField(
-                                controller: _quantityController,
-                                focusNode: _quantityFocusNode,
-                                textAlign: TextAlign.center,
-                                keyboardType: TextInputType.number,
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w600,
-                                  color: AppColors.text,
-                                ),
-                                decoration: const InputDecoration(
-                                  border: InputBorder.none,
-                                  isDense: true,
-                                  contentPadding: EdgeInsets.zero,
-                                ),
-                                onChanged: (value) {
-                                  final qty = int.tryParse(value) ?? 1;
-                                  if (qty >= 1) {
-                                    widget.onQuantityChanged(qty);
-                                  }
-                                },
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            GestureDetector(
-                              onTap: () {
-                                int current = int.tryParse(_quantityController.text) ?? 1;
-                                _quantityController.text = '${current + 1}';
-                                widget.onQuantityChanged(current + 1);
-                              },
-                              child: Container(
-                                padding: const EdgeInsets.all(4),
-                                decoration: BoxDecoration(
-                                  color: AppColors.primary,
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                                child: const Icon(
-                                  Icons.add,
-                                  size: 16,
-                                  color: Colors.white,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(width: 12),
-
-              // Price input
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Price',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    TextField(
-                      controller: _priceController,
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.text,
-                      ),
-                      decoration: InputDecoration(
-                        prefixText: '\$ ',
-                        prefixStyle: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.text,
-                        ),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(
-                            color: AppColors.primary.withValues(alpha: 0.2),
-                          ),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(
-                            color: AppColors.primary,
-                            width: 2,
-                          ),
-                        ),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                        isDense: true,
-                      ),
-                      onChanged: (value) {
-                        final price = double.tryParse(value) ?? 0.0;
-                        widget.onPriceChanged(price);
-                      },
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(width: 12),
-
-              // Subtotal
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  const Text(
-                    'Subtotal',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey,
-                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  const SizedBox(height: 4),
-                  Text(
+                ),
+                const SizedBox(width: 8),
+                // Subtotal pill
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
                     '\$${subtotal.toStringAsFixed(2)}',
                     style: const TextStyle(
-                      fontSize: 16,
+                      fontSize: 13,
                       fontWeight: FontWeight.bold,
                       color: AppColors.primary,
                     ),
                   ),
-                ],
-              ),
-            ],
+                ),
+                const SizedBox(width: 6),
+                // Remove button
+                GestureDetector(
+                  onTap: widget.onRemove,
+                  child: Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: Colors.red.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(
+                      Icons.close_rounded,
+                      size: 18,
+                      color: Colors.red[400],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 10),
+          const Divider(height: 1, indent: 12, endIndent: 12),
+          const SizedBox(height: 10),
+
+          // ── Bottom row: qty stepper | price field ──
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+            child: Row(
+              children: [
+                // Label + stepper
+                Expanded(
+                  flex: 5,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Quantity',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.grey,
+                          fontWeight: FontWeight.w500,
+                          letterSpacing: 0.3,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      // ✅ FIX: stepper uses Row with fixed widths, no overflow
+                      Container(
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: AppColors.primary
+                              .withValues(alpha: 0.06),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: AppColors.primary
+                                .withValues(alpha: 0.2),
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisAlignment:
+                              MainAxisAlignment.spaceBetween,
+                          children: [
+                            // Minus
+                            _StepButton(
+                              icon: Icons.remove,
+                              onTap: _decrement,
+                            ),
+                            // Number field
+                            Expanded(
+                              child: TextField(
+                                controller: _quantityController,
+                                focusNode: _quantityFocusNode,
+                                textAlign: TextAlign.center,
+                                keyboardType:
+                                    TextInputType.number,
+                                inputFormatters: [
+                                  FilteringTextInputFormatter
+                                      .digitsOnly,
+                                ],
+                                style: const TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.text,
+                                ),
+                                decoration:
+                                    const InputDecoration(
+                                  border: InputBorder.none,
+                                  isDense: true,
+                                  contentPadding:
+                                      EdgeInsets.zero,
+                                ),
+                                onChanged: (value) {
+                                  final qty =
+                                      int.tryParse(value) ?? 1;
+                                  if (qty >= 1) {
+                                    widget
+                                        .onQuantityChanged(qty);
+                                  }
+                                },
+                              ),
+                            ),
+                            // Plus
+                            _StepButton(
+                              icon: Icons.add,
+                              onTap: _increment,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(width: 10),
+
+                // Price field
+                Expanded(
+                  flex: 5,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Unit Price',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.grey,
+                          fontWeight: FontWeight.w500,
+                          letterSpacing: 0.3,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      SizedBox(
+                        height: 40,
+                        child: TextField(
+                          controller: _priceController,
+                          focusNode: _priceFocusNode,
+                          keyboardType:
+                              const TextInputType.numberWithOptions(
+                                  decimal: true),
+                          inputFormatters: [
+                            FilteringTextInputFormatter.allow(
+                                RegExp(r'^\d*\.?\d{0,2}')),
+                          ],
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.text,
+                          ),
+                          decoration: InputDecoration(
+                            prefixText: '\$ ',
+                            prefixStyle: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.grey[600],
+                            ),
+                            contentPadding:
+                                const EdgeInsets.symmetric(
+                                    horizontal: 10),
+                            isDense: true,
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius:
+                                  BorderRadius.circular(10),
+                              borderSide: BorderSide(
+                                color: AppColors.primary
+                                    .withValues(alpha: 0.2),
+                              ),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius:
+                                  BorderRadius.circular(10),
+                              borderSide: const BorderSide(
+                                color: AppColors.primary,
+                                width: 1.8,
+                              ),
+                            ),
+                          ),
+                          onChanged: (value) {
+                            final price =
+                                double.tryParse(value) ?? 0.0;
+                            widget.onPriceChanged(price);
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Small +/- button used inside the quantity stepper
+class _StepButton extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onTap;
+
+  const _StepButton({required this.icon, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 36,
+        height: 40,
+        decoration: BoxDecoration(
+          color: AppColors.primary,
+          borderRadius: BorderRadius.circular(9),
+        ),
+        child: Icon(icon, size: 18, color: Colors.white),
       ),
     );
   }

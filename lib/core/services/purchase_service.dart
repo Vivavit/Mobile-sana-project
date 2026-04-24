@@ -4,6 +4,52 @@ import 'package:mobile_camsme_sana_project/core/models/purchase_order_model.dart
 import 'package:mobile_camsme_sana_project/core/services/api_service.dart';
 import 'package:mobile_camsme_sana_project/core/services/session.dart';
 
+class PurchaseInvoiceLine {
+  final String productName;
+  final int quantity;
+  final double unitPrice;
+  final double lineTotal;
+
+  const PurchaseInvoiceLine({
+    required this.productName,
+    required this.quantity,
+    required this.unitPrice,
+    required this.lineTotal,
+  });
+}
+
+class PurchaseInvoiceData {
+  final int orderId;
+  final String invoiceNumber;
+  final String supplierName;
+  final String? warehouseName;
+  final String status;
+  final DateTime date;
+  final List<PurchaseInvoiceLine> lines;
+  final double subtotal;
+  final double taxRate;
+  final double taxAmount;
+  final double shippingCost;
+  final double grandTotal;
+  final String? notes;
+
+  const PurchaseInvoiceData({
+    required this.orderId,
+    required this.invoiceNumber,
+    required this.supplierName,
+    required this.warehouseName,
+    required this.status,
+    required this.date,
+    required this.lines,
+    required this.subtotal,
+    required this.taxRate,
+    required this.taxAmount,
+    required this.shippingCost,
+    required this.grandTotal,
+    required this.notes,
+  });
+}
+
 class PurchaseService {
   static final PurchaseService _instance = PurchaseService._internal();
   factory PurchaseService() => _instance;
@@ -584,7 +630,7 @@ class PurchaseService {
 
     final newOrder = await createPurchaseOrder(
       supplierId: purchase.supplier.id,
-      warehouseId: (Session.warehouseId as int?) ?? 1,
+      warehouseId: int.tryParse(Session.warehouseId.toString()) ?? 1,
       items: items,
       notes: purchase.notes,
     );
@@ -742,5 +788,173 @@ class PurchaseService {
       'tax_amount': taxAmount,
       'total': total,
     };
+  }
+
+  /// Fetches a purchase order and maps it into invoice-ready data.
+  Future<PurchaseInvoiceData> buildInvoiceData(int purchaseOrderId) async {
+    final order = await fetchPurchaseOrder(purchaseOrderId);
+
+    final lines = order.items.map((item) {
+      final lineTotal = item.unitPrice * item.quantity;
+      return PurchaseInvoiceLine(
+        productName: item.product.name,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        lineTotal: lineTotal,
+      );
+    }).toList();
+
+    final subtotal = order.subtotal > 0
+        ? order.subtotal
+        : lines.fold<double>(0, (sum, line) => sum + line.lineTotal);
+
+    final taxRate = order.taxRate;
+    final taxAmount = order.taxAmount > 0 ? order.taxAmount : subtotal * (taxRate / 100);
+    final shippingCost = order.shippingCost;
+    final grandTotal = order.total > 0 ? order.total : subtotal + taxAmount + shippingCost;
+
+    return PurchaseInvoiceData(
+      orderId: order.id ?? purchaseOrderId,
+      invoiceNumber: order.poNumber ?? 'PO-$purchaseOrderId',
+      supplierName: order.supplierName ?? 'Unknown Supplier',
+      warehouseName: order.warehouseName,
+      status: order.status ?? 'draft',
+      date: order.createdAt,
+      lines: lines,
+      subtotal: subtotal,
+      taxRate: taxRate,
+      taxAmount: taxAmount,
+      shippingCost: shippingCost,
+      grandTotal: grandTotal,
+      notes: order.notes,
+    );
+  }
+
+  /// Returns a plain-text printable invoice (easy to share/print).
+  Future<String> buildPrintableInvoiceText(int purchaseOrderId) async {
+    final invoice = await buildInvoiceData(purchaseOrderId);
+    final buffer = StringBuffer();
+
+    buffer.writeln('PURCHASE INVOICE');
+    buffer.writeln('==============================');
+    buffer.writeln('Invoice No : ${invoice.invoiceNumber}');
+    buffer.writeln('Order ID   : ${invoice.orderId}');
+    buffer.writeln('Date       : ${_formatDate(invoice.date)}');
+    buffer.writeln('Status     : ${invoice.status.toUpperCase()}');
+    buffer.writeln('Supplier   : ${invoice.supplierName}');
+    if (invoice.warehouseName != null && invoice.warehouseName!.isNotEmpty) {
+      buffer.writeln('Warehouse  : ${invoice.warehouseName}');
+    }
+    buffer.writeln('------------------------------');
+    buffer.writeln('Items');
+    buffer.writeln('------------------------------');
+
+    for (final line in invoice.lines) {
+      buffer.writeln(
+        '${line.productName}  x${line.quantity}  @ ${_money(line.unitPrice)}  = ${_money(line.lineTotal)}',
+      );
+    }
+
+    buffer.writeln('------------------------------');
+    buffer.writeln('Subtotal   : ${_money(invoice.subtotal)}');
+    buffer.writeln('Tax (${invoice.taxRate.toStringAsFixed(2)}%) : ${_money(invoice.taxAmount)}');
+    buffer.writeln('Shipping   : ${_money(invoice.shippingCost)}');
+    buffer.writeln('TOTAL      : ${_money(invoice.grandTotal)}');
+    if (invoice.notes != null && invoice.notes!.isNotEmpty) {
+      buffer.writeln('------------------------------');
+      buffer.writeln('Notes: ${invoice.notes}');
+    }
+    buffer.writeln('==============================');
+
+    return buffer.toString();
+  }
+
+  /// Returns a minimal HTML invoice body for WebView/print adapters.
+  Future<String> buildPrintableInvoiceHtml(int purchaseOrderId) async {
+    final invoice = await buildInvoiceData(purchaseOrderId);
+    final rows = invoice.lines
+        .map(
+          (line) => '''
+          <tr>
+            <td>${_escapeHtml(line.productName)}</td>
+            <td style="text-align:center;">${line.quantity}</td>
+            <td style="text-align:right;">${_money(line.unitPrice)}</td>
+            <td style="text-align:right;">${_money(line.lineTotal)}</td>
+          </tr>
+        ''',
+        )
+        .join();
+
+    return '''
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Invoice ${_escapeHtml(invoice.invoiceNumber)}</title>
+    <style>
+      body { font-family: Arial, sans-serif; color: #222; padding: 20px; }
+      h1 { margin-bottom: 6px; }
+      .meta { margin-bottom: 14px; line-height: 1.5; }
+      table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+      th, td { border: 1px solid #ddd; padding: 8px; }
+      th { background: #f7f7f7; text-align: left; }
+      .totals { margin-top: 14px; width: 280px; margin-left: auto; }
+      .totals div { display: flex; justify-content: space-between; padding: 3px 0; }
+      .grand { font-weight: 700; border-top: 1px solid #ccc; margin-top: 5px; padding-top: 5px; }
+      .notes { margin-top: 16px; font-size: 14px; }
+    </style>
+  </head>
+  <body>
+    <h1>Purchase Invoice</h1>
+    <div class="meta">
+      <div><strong>Invoice:</strong> ${_escapeHtml(invoice.invoiceNumber)}</div>
+      <div><strong>Date:</strong> ${_formatDate(invoice.date)}</div>
+      <div><strong>Status:</strong> ${_escapeHtml(invoice.status.toUpperCase())}</div>
+      <div><strong>Supplier:</strong> ${_escapeHtml(invoice.supplierName)}</div>
+      ${invoice.warehouseName != null ? '<div><strong>Warehouse:</strong> ${_escapeHtml(invoice.warehouseName!)}</div>' : ''}
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Product</th>
+          <th style="text-align:center;">Qty</th>
+          <th style="text-align:right;">Unit Price</th>
+          <th style="text-align:right;">Total</th>
+        </tr>
+      </thead>
+      <tbody>
+        $rows
+      </tbody>
+    </table>
+
+    <div class="totals">
+      <div><span>Subtotal</span><span>${_money(invoice.subtotal)}</span></div>
+      <div><span>Tax (${invoice.taxRate.toStringAsFixed(2)}%)</span><span>${_money(invoice.taxAmount)}</span></div>
+      <div><span>Shipping</span><span>${_money(invoice.shippingCost)}</span></div>
+      <div class="grand"><span>Total</span><span>${_money(invoice.grandTotal)}</span></div>
+    </div>
+
+    ${invoice.notes != null && invoice.notes!.isNotEmpty ? '<div class="notes"><strong>Notes:</strong> ${_escapeHtml(invoice.notes!)}</div>' : ''}
+  </body>
+</html>
+''';
+  }
+
+  String _money(double value) => '\$${value.toStringAsFixed(2)}';
+
+  String _formatDate(DateTime date) {
+    final mm = date.month.toString().padLeft(2, '0');
+    final dd = date.day.toString().padLeft(2, '0');
+    return '${date.year}-$mm-$dd';
+  }
+
+  String _escapeHtml(String input) {
+    return input
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;');
   }
 }

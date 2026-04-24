@@ -1,5 +1,30 @@
 import 'package:mobile_camsme_sana_project/core/models/purchase_item_model.dart';
 import 'package:mobile_camsme_sana_project/core/models/purchase.dart';
+import 'package:mobile_camsme_sana_project/core/models/product.dart';
+
+class PurchaseOrderRef {
+  final int id;
+  final String? name;
+
+  const PurchaseOrderRef({
+    required this.id,
+    this.name,
+  });
+
+  factory PurchaseOrderRef.fromJson(Map<String, dynamic> json) {
+    return PurchaseOrderRef(
+      id: _toInt(json['id']) ?? 0,
+      name: json['name']?.toString(),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+    };
+  }
+}
 
 class PurchaseOrder {
   final int? id;
@@ -21,6 +46,9 @@ class PurchaseOrder {
   final DateTime? receivedAt;
   final int? createdById;
   final String? createdByName;
+  final PurchaseOrderRef? supplier;
+  final PurchaseOrderRef? warehouse;
+  final PurchaseOrderRef? createdBy;
 
   final List<PurchaseOrderItem> items;
 
@@ -44,42 +72,52 @@ class PurchaseOrder {
     this.receivedAt,
     this.createdById,
     this.createdByName,
+    this.supplier,
+    this.warehouse,
+    this.createdBy,
     required this.items,
   });
 
   factory PurchaseOrder.fromJson(Map<String, dynamic> json) {
-    final itemsJson = json['items'] as List<dynamic>? ?? [];
-    final items = itemsJson.map((item) => PurchaseOrderItem.fromJson(item)).toList();
-    final supplier = json['supplier'] as Map<String, dynamic>?;
-    final warehouse = json['warehouse'] as Map<String, dynamic>?;
-    final creator = json['creator'] as Map<String, dynamic>?;
+    final itemsJson = json['items'] is List ? (json['items'] as List) : const <dynamic>[];
+    final items = itemsJson
+        .whereType<Map<String, dynamic>>()
+        .map(PurchaseOrderItem.fromJson)
+        .toList();
+
+    final supplierJson = _asMap(json['supplier']);
+    final warehouseJson = _asMap(json['warehouse']);
+
+    // Some backends return "creator", others return "created_by" as object.
+    final createdByJson = _asMap(json['created_by']) ?? _asMap(json['creator']);
+
+    final supplierRef = supplierJson != null ? PurchaseOrderRef.fromJson(supplierJson) : null;
+    final warehouseRef = warehouseJson != null ? PurchaseOrderRef.fromJson(warehouseJson) : null;
+    final createdByRef = createdByJson != null ? PurchaseOrderRef.fromJson(createdByJson) : null;
 
     return PurchaseOrder(
-      id: json['id'],
-      poNumber: json['po_number'],
-      referenceNumber: json['reference_number'],
-      status: json['status'],
-      supplierId: json['supplier_id'] ?? supplier?['id'] ?? 0,
-      supplierName: json['supplier_name'] ?? supplier?['name'],
-      warehouseId: json['warehouse_id'] ?? warehouse?['id'] ?? 0,
-      warehouseName: json['warehouse_name'] ?? warehouse?['name'],
-      notes: json['notes'],
-      taxRate: json['tax_rate']?.toDouble() ?? 0,
-      shippingCost: json['shipping_cost']?.toDouble() ?? 0,
-      subtotal: json['subtotal']?.toDouble() ?? 0,
-      taxAmount: json['tax_amount']?.toDouble() ?? 0,
-      total: json['total']?.toDouble() ?? 0,
-      createdAt: json['created_at'] != null
-          ? DateTime.parse(json['created_at'].toString())
-          : DateTime.now(),
-      updatedAt: json['updated_at'] != null
-          ? DateTime.parse(json['updated_at'].toString())
-          : DateTime.now(),
-      receivedAt: json['received_at'] != null
-          ? DateTime.parse(json['received_at'].toString())
-          : null,
-      createdById: json['created_by'] ?? creator?['id'],
-      createdByName: json['created_by_name'] ?? creator?['name'],
+      id: _toInt(json['id']),
+      poNumber: json['po_number']?.toString(),
+      referenceNumber: json['reference_number']?.toString(),
+      status: json['status']?.toString(),
+      supplierId: _toInt(json['supplier_id']) ?? supplierRef?.id ?? 0,
+      supplierName: json['supplier_name']?.toString() ?? supplierRef?.name,
+      warehouseId: _toInt(json['warehouse_id']) ?? warehouseRef?.id ?? 0,
+      warehouseName: json['warehouse_name']?.toString() ?? warehouseRef?.name,
+      notes: json['notes']?.toString(),
+      taxRate: _toDouble(json['tax_rate']) ?? 0,
+      shippingCost: _toDouble(json['shipping_cost']) ?? 0,
+      subtotal: _toDouble(json['subtotal']) ?? 0,
+      taxAmount: _toDouble(json['tax_amount']) ?? 0,
+      total: _toDouble(json['total']) ?? 0,
+      createdAt: _toDate(json['created_at']) ?? DateTime.now(),
+      updatedAt: _toDate(json['updated_at']) ?? DateTime.now(),
+      receivedAt: _toDate(json['received_at']),
+      createdById: _toInt(json['created_by']) ?? createdByRef?.id,
+      createdByName: json['created_by_name']?.toString() ?? createdByRef?.name,
+      supplier: supplierRef,
+      warehouse: warehouseRef,
+      createdBy: createdByRef,
       items: items,
     );
   }
@@ -105,6 +143,9 @@ class PurchaseOrder {
       'received_at': receivedAt?.toIso8601String(),
       'created_by': createdById,
       'created_by_name': createdByName,
+      'supplier': supplier?.toJson(),
+      'warehouse': warehouse?.toJson(),
+      'created_by_object': createdBy?.toJson(),
       'items': items.map((item) => item.toJson()).toList(),
     };
   }
@@ -129,6 +170,9 @@ class PurchaseOrder {
     DateTime? receivedAt,
     int? createdById,
     String? createdByName,
+    PurchaseOrderRef? supplier,
+    PurchaseOrderRef? warehouse,
+    PurchaseOrderRef? createdBy,
     List<PurchaseOrderItem>? items,
   }) {
     return PurchaseOrder(
@@ -151,6 +195,9 @@ class PurchaseOrder {
       receivedAt: receivedAt ?? this.receivedAt,
       createdById: createdById ?? this.createdById,
       createdByName: createdByName ?? this.createdByName,
+      supplier: supplier ?? this.supplier,
+      warehouse: warehouse ?? this.warehouse,
+      createdBy: createdBy ?? this.createdBy,
       items: items ?? this.items,
     );
   }
@@ -181,6 +228,113 @@ class PurchaseOrder {
       total: total,
       status: status,
       createdAt: createdAt,
+    );
+  }
+}
+
+Map<String, dynamic>? _asMap(dynamic value) {
+  if (value is Map<String, dynamic>) return value;
+  return null;
+}
+
+int? _toInt(dynamic value) {
+  if (value == null) return null;
+  if (value is int) return value;
+  if (value is double) return value.toInt();
+  return int.tryParse(value.toString());
+}
+
+double? _toDouble(dynamic value) {
+  if (value == null) return null;
+  if (value is double) return value;
+  if (value is int) return value.toDouble();
+  return double.tryParse(value.toString());
+}
+
+DateTime? _toDate(dynamic value) {
+  if (value == null) return null;
+  if (value is DateTime) return value;
+  return DateTime.tryParse(value.toString());
+}
+
+class PurchaseOrderItem {
+  final int? id;
+  final int productId;
+  final Product product;
+  final int quantity;
+  final double unitPrice;
+  final double? taxRate;
+  final double? discount;
+  final double totalPrice;
+  final int? receivedQuantity;
+ 
+  PurchaseOrderItem({
+    this.id,
+    required this.productId,
+    required this.product,
+    required this.quantity,
+    required this.unitPrice,
+    this.taxRate,
+    this.discount,
+    this.receivedQuantity = 0,
+  }) : totalPrice = (unitPrice * quantity) - (discount ?? 0);
+ 
+  factory PurchaseOrderItem.fromJson(Map<String, dynamic> json) {
+    return PurchaseOrderItem(
+      id: json['id'] != null ? int.tryParse(json['id'].toString()) : null,
+      productId: json['product_id'] != null
+          ? int.tryParse(json['product_id'].toString()) ?? 0
+          : 0,
+      product: Product.fromJson(json['product'] ?? json),
+      quantity: json['quantity'] != null
+          ? int.tryParse(json['quantity'].toString()) ?? 0
+          : 0,
+      unitPrice: json['unit_price'] != null
+          ? double.tryParse(json['unit_price'].toString()) ?? 0.0
+          : 0.0,
+      taxRate: json['tax_rate'] != null
+          ? double.tryParse(json['tax_rate'].toString())
+          : null,
+      discount: json['discount'] != null
+          ? double.tryParse(json['discount'].toString())
+          : null,
+      receivedQuantity: json['received_quantity'] != null
+          ? int.tryParse(json['received_quantity'].toString()) ?? 0
+          : 0,
+    );
+  }
+ 
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'product_id': productId,
+      'quantity': quantity,
+      'unit_price': unitPrice,
+      'tax_rate': taxRate,
+      'discount': discount,
+      'total_price': totalPrice,
+    };
+  }
+ 
+  PurchaseOrderItem copyWith({
+    int? id,
+    int? productId,
+    Product? product,
+    int? quantity,
+    double? unitPrice,
+    double? taxRate,
+    double? discount,
+    int? receivedQuantity,
+  }) {
+    return PurchaseOrderItem(
+      id: id ?? this.id,
+      productId: productId ?? this.productId,
+      product: product ?? this.product,
+      quantity: quantity ?? this.quantity,
+      unitPrice: unitPrice ?? this.unitPrice,
+      taxRate: taxRate ?? this.taxRate,
+      discount: discount ?? this.discount,
+      receivedQuantity: receivedQuantity ?? this.receivedQuantity,
     );
   }
 }

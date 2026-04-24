@@ -2,6 +2,7 @@ import 'package:mobile_camsme_sana_project/core/services/secure_storage_service.
 import 'package:mobile_camsme_sana_project/core/services/session.dart';
 
 class AuthService {
+
   static Future<void> saveLoginData(
     String token,
     String warehouseId,
@@ -9,6 +10,7 @@ class AuthService {
     String? userName,
     String? userEmail,
     String? userPhone,
+    String? userType,
     List<String>? permissions,
   }) async {
     await SecureStorageService.saveAuthData(
@@ -19,6 +21,7 @@ class AuthService {
       userEmail: userEmail,
       userPhone: userPhone,
       permissions: permissions,
+      userType: userType,
     );
 
     Session.token = token;
@@ -27,6 +30,7 @@ class AuthService {
     Session.userEmail = userEmail;
     Session.userPhone = userPhone;
     Session.permissions = permissions;
+    Session.userType = userType;
   }
 
   static Future<bool> isLoggedIn() async {
