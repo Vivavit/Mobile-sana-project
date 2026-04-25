@@ -202,12 +202,6 @@ class _ProductListPageState extends State<ProductListPage>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Products'),
-        backgroundColor: AppColors.primary,
-        foregroundColor: Colors.white,
-        elevation: 0,
-      ),
       backgroundColor: const Color(0xFFF7F8FA),
       body: _buildBody(),
       floatingActionButton: _canManageProducts

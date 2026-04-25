@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:mobile_camsme_sana_project/core/constants/app_color.dart';
 import 'package:mobile_camsme_sana_project/core/models/user_model.dart';
+import 'package:mobile_camsme_sana_project/core/providers/auth_provider.dart';
 import 'package:mobile_camsme_sana_project/core/services/auth_service.dart';
 import 'package:mobile_camsme_sana_project/core/services/user_service.dart';
 
@@ -230,7 +232,9 @@ class _SettingPageState extends State<SettingPage> {
                     );
 
                     if (shouldLogout == true && mounted) {
-                      await AuthService.logout();
+                      // Use AuthProvider for reactive logout
+                      final authProvider = context.read<AuthProvider>();
+                      await authProvider.logout();
                       if (mounted) {
                         navigator.pushReplacementNamed('/login');
                       }

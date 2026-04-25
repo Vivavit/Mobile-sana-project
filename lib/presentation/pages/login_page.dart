@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:mobile_camsme_sana_project/core/constants/app_color.dart';
+import 'package:mobile_camsme_sana_project/core/providers/auth_provider.dart';
 import 'package:mobile_camsme_sana_project/core/services/api_service.dart';
 import 'package:mobile_camsme_sana_project/core/services/auth_service.dart';
 import 'package:mobile_camsme_sana_project/core/services/session.dart';
@@ -67,11 +69,11 @@ class _LoginPageState extends State<LoginPage> {
       // Extract user data (including permissions)
       final userData = res['user'] ?? {};
 
-      // Save ALL login data
-      await AuthService.saveLoginData(
-        res['token'],
-        warehouseIdStr,
-        warehouseName,
+      // Save ALL login data using AuthProvider for reactive state
+      final authProvider = context.read<AuthProvider>();
+      final loginSuccess = await authProvider.login(
+        token: res['token'],
+        warehouseId: warehouseIdStr,
         userName: userData['name'],
         userEmail: userData['email'],
         userPhone: userData['phone'],
@@ -79,7 +81,12 @@ class _LoginPageState extends State<LoginPage> {
         permissions: userData['permissions'] != null
             ? List<String>.from(userData['permissions'])
             : null,
+        userId: userData['id'],
       );
+
+      if (!loginSuccess) {
+        throw Exception('Failed to update auth state');
+      }
 
       debugPrint('Login successful!');
       debugPrint('Warehouse ID: ${Session.warehouseId}');

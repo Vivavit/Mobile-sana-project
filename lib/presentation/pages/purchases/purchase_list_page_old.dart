@@ -86,12 +86,6 @@ class _PurchaseListPageState extends State<PurchaseListPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Purchases'),
-        backgroundColor: AppColors.primary,
-        foregroundColor: Colors.white,
-        elevation: 0,
-      ),
       backgroundColor: AppColors.background,
       body: SafeArea(
         child: RefreshIndicator(

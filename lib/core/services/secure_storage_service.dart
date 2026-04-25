@@ -16,6 +16,8 @@ class SecureStorageService {
   static const String _userEmailKey = 'user_email';
   static const String _userPhoneKey = 'user_phone';
   static const String _userPermissionsKey = 'user_permissions';
+  static const String _userIdKey = 'user_id';
+  static const String _userTypeKey = 'user_type';
 
   /// Save token securely
   static Future<void> saveToken(String token) async {
@@ -40,7 +42,9 @@ class SecureStorageService {
     String? userName,
     String? userEmail,
     String? userPhone,
-    List<String>? permissions, String? userType,
+    List<String>? permissions,
+    String? userType,
+    int? userId,
   }) async {
     final futures = <Future>[
       _storage.write(key: _tokenKey, value: token),
@@ -62,6 +66,12 @@ class SecureStorageService {
         key: _userPermissionsKey,
         value: jsonEncode(permissions),
       ));
+    }
+    if (userType != null) {
+      futures.add(_storage.write(key: _userTypeKey, value: userType));
+    }
+    if (userId != null) {
+      futures.add(_storage.write(key: _userIdKey, value: userId.toString()));
     }
 
     await Future.wait(futures);
@@ -106,6 +116,29 @@ class SecureStorageService {
     return null;
   }
 
+  /// Get user permissions (alias for AuthProvider compatibility)
+  static Future<List<String>?> getPermissions() async {
+    return await getUserPermissions();
+  }
+
+  /// Get user ID
+  static Future<int?> getUserId() async {
+    final data = await _storage.read(key: _userIdKey);
+    if (data != null) {
+      try {
+        return int.parse(data);
+      } catch (e) {
+        return null;
+      }
+    }
+    return null;
+  }
+
+  /// Get user type
+  static Future<String?> getUserType() async {
+    return await _storage.read(key: _userTypeKey);
+  }
+
   /// Save user permissions
   static Future<void> savePermissions(List<String> permissions) async {
     await _storage.write(
@@ -130,6 +163,9 @@ class SecureStorageService {
       _storage.delete(key: _userNameKey),
       _storage.delete(key: _userEmailKey),
       _storage.delete(key: _userPhoneKey),
+      _storage.delete(key: _userPermissionsKey),
+      _storage.delete(key: _userIdKey),
+      _storage.delete(key: _userTypeKey),
     ]);
   }
 }
